@@ -1,0 +1,30 @@
+@import 'tailwindcss';
+
+/* Optimized styles for the screenplay evaluation tool */
+body {
+	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+	line-height: 1.6;
+}
+
+/* Consolidated button styles */
+.btn-primary {
+	@apply inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 transition-colors duration-200;
+}
+
+/* Navigation styles */
+.nav-link {
+	@apply text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200;
+}
+
+.nav-link.active {
+	@apply text-blue-600 bg-blue-50;
+}
+
+/* Utility classes for poster display */
+.poster-gradient {
+	@apply bg-gradient-to-r from-yellow-50 to-orange-50;
+}
+
+.poster-icon {
+	@apply w-16 h-24 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center shadow-lg;
+}

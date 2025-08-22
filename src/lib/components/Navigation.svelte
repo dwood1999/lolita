@@ -1,0 +1,146 @@
+<script lang="ts">
+	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+
+	let user: { id: string; email: string } | null = null;
+	let showUserMenu = false;
+
+	onMount(async () => {
+		try {
+			const response = await fetch('/api/auth/me');
+			const data = await response.json();
+			if (data.success) {
+				user = data.user;
+			}
+		} catch (error) {
+			console.error('Failed to fetch user:', error);
+		}
+	});
+
+	async function handleLogout() {
+		try {
+			await fetch('/api/auth/logout', { method: 'POST' });
+			user = null;
+			showUserMenu = false;
+			goto('/auth/login');
+		} catch (error) {
+			console.error('Logout failed:', error);
+		}
+	}
+
+	function toggleUserMenu() {
+		showUserMenu = !showUserMenu;
+	}
+
+	function closeUserMenu() {
+		showUserMenu = false;
+	}
+
+	// Close menu when clicking outside
+	function handleClickOutside(event: MouseEvent) {
+		const target = event.target as HTMLElement;
+		if (!target.closest('.user-menu-container')) {
+			showUserMenu = false;
+		}
+	}
+
+	$: currentPath = $page.url.pathname;
+</script>
+
+<svelte:window on:click={handleClickOutside} />
+
+<nav class="bg-white shadow-sm border-b border-gray-200">
+	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+		<div class="flex justify-between h-16">
+			<div class="flex">
+				<div class="flex-shrink-0 flex items-center">
+					<a href="/" class="text-xl font-bold text-gray-900">
+						Lolita
+					</a>
+				</div>
+				
+				<div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+					<a
+						href="/about"
+						class="nav-link {currentPath === '/about' ? 'active' : ''}"
+					>
+						About
+					</a>
+					{#if user}
+						<a
+							href="/dashboard"
+							class="nav-link {currentPath === '/dashboard' ? 'active' : ''}"
+						>
+							Dashboard
+						</a>
+						<a
+							href="/screenplays"
+							class="nav-link {currentPath.startsWith('/screenplays') ? 'active' : ''}"
+						>
+							Screenplays
+						</a>
+					{/if}
+				</div>
+			</div>
+
+			<div class="flex items-center">
+				{#if user}
+					<div class="relative user-menu-container">
+						<button
+							type="button"
+							class="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+							on:click={toggleUserMenu}
+						>
+							<span class="sr-only">Open user menu</span>
+							<div class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+								<span class="text-white text-sm font-medium">
+									{user.email.charAt(0).toUpperCase()}
+								</span>
+							</div>
+						</button>
+
+						{#if showUserMenu}
+							<div class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50">
+								<div class="py-1">
+									<div class="px-4 py-2 text-sm text-gray-700 border-b border-gray-100">
+										{user.email}
+									</div>
+									<a
+										href="/profile"
+										class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+										on:click={closeUserMenu}
+									>
+										Profile
+									</a>
+									<button
+										type="button"
+										class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+										on:click={handleLogout}
+									>
+										Sign out
+									</button>
+								</div>
+							</div>
+						{/if}
+					</div>
+				{:else}
+					<div class="flex items-center space-x-4">
+						<a
+							href="/auth/login"
+							class="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+						>
+							Sign in
+						</a>
+						<a
+							href="/auth/register"
+							class="btn-primary"
+						>
+							Sign up
+						</a>
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+</nav>
