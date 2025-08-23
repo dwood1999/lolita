@@ -257,7 +257,7 @@ Be thorough but concise. If no clear source material is indicated, mark as "orig
                     }
                 ],
                 "temperature": 0.3,  # Lower temperature for more consistent analysis
-                "max_tokens": 1500,
+                "max_completion_tokens": 1500,
                 "response_format": {"type": "json_object"}
             }
             

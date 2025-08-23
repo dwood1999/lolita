@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 # Import our poster generation analyzers
 from openai_analyzer import OpenAIAnalyzer
 from flux_analyzer import FluxAnalyzer
-from piapi_analyzer import PiAPIAnalyzer
+# from piapi_analyzer import PiAPIAnalyzer  # Commented out - not working
 
 load_dotenv()
 
@@ -57,7 +57,7 @@ class PosterManager:
         # Initialize all poster generation sources
         self.openai_analyzer = OpenAIAnalyzer()
         self.flux_analyzer = FluxAnalyzer()
-        self.piapi_analyzer = PiAPIAnalyzer()
+        # self.piapi_analyzer = PiAPIAnalyzer()  # Commented out - not working
         
         # Poster style variations
         self.poster_styles = {
@@ -111,10 +111,10 @@ class PosterManager:
             for style in variations:
                 tasks.append(self._generate_flux_variation(title, genre, analysis_data, style))
         
-        # PiAPI - Additional source if available
-        if self.piapi_analyzer.api_key:
-            # Only generate one PiAPI variation to control costs
-            tasks.append(self._generate_piapi_variation(title, genre, analysis_data, variations[0]))
+        # PiAPI - Additional source if available (COMMENTED OUT - NOT WORKING)
+        # if self.piapi_analyzer.api_key:
+        #     # Only generate one PiAPI variation to control costs
+        #     tasks.append(self._generate_piapi_variation(title, genre, analysis_data, variations[0]))
         
         # Execute all poster generation tasks in parallel
         logger.info(f"🔄 Executing {len(tasks)} poster generation tasks in parallel...")

@@ -164,7 +164,7 @@ class PiAPIAnalyzer:
             
             # PiAPI task creation payload for Flux
             payload = {
-                "model": "sd",  # Use PiAPI's Stable Diffusion model
+                "model": "flux",  # Use PiAPI's Flux model
                 "task_type": "text-to-image",
                 "input": {
                     "prompt": prompt,

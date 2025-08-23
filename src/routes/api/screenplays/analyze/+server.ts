@@ -51,11 +51,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             pythonFormData.append('budget_estimate', budgetEstimate);
         }
 
-		// Forward to Python service
+		// Forward to Python service with extended timeout
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+		
 		const response = await fetch(`${PYTHON_SERVICE_URL}/analyze/pdf`, {
 			method: 'POST',
-			body: pythonFormData
+			body: pythonFormData,
+			signal: controller.signal
 		});
+		
+		clearTimeout(timeoutId);
 
 		if (!response.ok) {
 			const errorData = await response.text();
@@ -73,9 +79,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	} catch (error) {
 		console.error('❌ Analysis API error:', error);
+		
+		// Handle specific error types
+		if (error instanceof Error) {
+			if (error.name === 'AbortError') {
+				return json({ 
+					error: 'Analysis request timed out', 
+					detail: 'The analysis is taking longer than expected. Please try again or check the screenplays page in a few minutes.' 
+				}, { status: 408 });
+			}
+			
+			return json({ 
+				error: 'Analysis failed to start', 
+				detail: error.message 
+			}, { status: 500 });
+		}
+		
 		return json({ 
 			error: 'Internal server error', 
-			detail: error instanceof Error ? error.message : 'Unknown error' 
+			detail: 'Unknown error occurred while starting analysis' 
 		}, { status: 500 });
 	}
 };

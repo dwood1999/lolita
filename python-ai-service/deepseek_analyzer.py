@@ -120,7 +120,7 @@ class DeepSeekAnalyzer:
                 budget_optimization=analysis_data.get('budget_optimization'),
                 roi_analysis=analysis_data.get('roi_analysis'),
                 investment_scenarios=analysis_data.get('investment_scenarios'),
-                risk_assessment=analysis_data.get('risk_assessment'),
+                risk_assessment=analysis_data.get('risk_assessment_detailed', analysis_data.get('risk_assessment')),
                 market_volatility=analysis_data.get('market_volatility'),
                 competitive_threats=analysis_data.get('competitive_threats'),
                 production_optimization=analysis_data.get('production_optimization'),
@@ -131,7 +131,7 @@ class DeepSeekAnalyzer:
                 marketing_efficiency=analysis_data.get('marketing_efficiency'),
                 overall_financial_score=analysis_data.get('overall_financial_score', 0.0),
                 confidence_level=analysis_data.get('confidence_level', 0.0),
-                recommendation=analysis_data.get('recommendation', 'Insufficient data'),
+                recommendation=analysis_data.get('executive_summary', {}).get('bottom_line_recommendation', analysis_data.get('recommendation', 'Insufficient data')),
                 processing_time=processing_time,
                 cost=cost,
                 success=True,
@@ -196,7 +196,7 @@ class DeepSeekAnalyzer:
         budget_context = f"Estimated budget: ${budget_estimate:,.0f}" if budget_estimate else "Budget: To be determined"
         comparables_context = f"Comparable films: {', '.join(comparable_films)}" if comparable_films else "No specific comparables provided"
         
-        return f"""You are a Hollywood financial analyst and data scientist specializing in box office prediction and film investment analysis. Perform a comprehensive financial analysis of this screenplay using mathematical modeling and statistical analysis.
+        return f"""You are a Hollywood financial analyst explaining movie investments to smart film enthusiasts. Your job is to break down complex financial concepts into clear, understandable explanations while being thorough and accurate.
 
 SCREENPLAY: "{title}"
 GENRE: {genre}
@@ -206,17 +206,28 @@ GENRE: {genre}
 SCREENPLAY CONTENT (SAMPLE):
 {screenplay_sample}
 
+IMPORTANT CONTEXT:
+- The budget provided is the PRODUCTION budget (what it costs to make the movie)
+- Break-even requires covering production + marketing + distribution costs
+- Theaters typically keep 50% of ticket sales, studios get the other 50%
+- Modern movies make money from multiple sources: theaters, streaming, TV, international sales, merchandise
+
 ANALYSIS REQUIREMENTS:
-Perform advanced mathematical modeling and statistical analysis to provide data-driven financial projections. Use Monte Carlo simulation concepts, regression analysis, and comparative market data.
+1. Explain ALL financial terms in simple language (like explaining to a smart 14-year-old)
+2. Include both theatrical AND streaming/digital scenarios
+3. Show your work - explain HOW you calculated each number
+4. Make risk assessments clear and actionable
+5. Consider modern distribution models (Netflix deals, day-and-date streaming, etc.)
 
 RESPOND WITH VALID JSON:
 {{
     "box_office_prediction": {{
-        "conservative_scenario": number,  // P10 - 10th percentile outcome
-        "expected_scenario": number,      // P50 - median expected outcome  
-        "optimistic_scenario": number,    // P90 - 90th percentile outcome
-        "confidence_interval": "string",  // Statistical confidence range
-        "methodology": "string"           // Explanation of prediction model
+        "conservative_scenario": number,  // Worst case realistic outcome (10% chance of doing worse)
+        "expected_scenario": number,      // Most likely outcome (50/50 chance)
+        "optimistic_scenario": number,    // Best case realistic outcome (10% chance of doing better)
+        "confidence_interval": "string",  // How sure we are about these numbers
+        "methodology_explanation": "string", // EXPLAIN: How did you calculate these predictions? What movies did you compare to?
+        "why_these_numbers": "string"     // EXPLAIN: Why this specific range? What factors drive the prediction?
     }},
     "domestic_international_split": {{
         "domestic_percentage": number,    // US/Canada market share
@@ -245,11 +256,16 @@ RESPOND WITH VALID JSON:
         "efficiency_opportunities": ["list"] // Cost optimization strategies
     }},
     "roi_analysis": {{
-        "break_even_point": number,        // Revenue needed to break even
-        "expected_roi_percentage": number, // Expected return on investment
-        "payback_period_months": number,   // Time to recoup investment
-        "net_present_value": number,       // NPV calculation
-        "internal_rate_return": number     // IRR percentage
+        "break_even_point": number,        // Total box office revenue needed to break even
+        "break_even_explanation": "string", // EXPLAIN: Why this number? Show the math: production + marketing + theater split
+        "expected_roi_percentage": number, // How much profit as percentage of investment
+        "roi_explanation": "string",       // EXPLAIN: What ROI means - if you invest $100 and get 50% ROI, you make $50 profit
+        "payback_period_months": number,   // How many months to get your money back
+        "payback_explanation": "string",   // EXPLAIN: What payback period means and why this timeline
+        "net_present_value": number,       // NPV calculation (today's value of future profits)
+        "npv_explanation": "string",       // EXPLAIN: NPV in simple terms - is this investment worth it vs putting money in the bank?
+        "internal_rate_return": number,    // IRR percentage (annual return rate)
+        "irr_explanation": "string"        // EXPLAIN: IRR like interest rate - what annual return this investment gives you
     }},
     "investment_scenarios": {{
         "low_budget_scenario": {{
@@ -312,11 +328,19 @@ RESPOND WITH VALID JSON:
         "awards_season_considerations": "string" // Awards strategy impact
     }},
     "platform_analysis": {{
-        "theatrical_revenue_potential": number,
-        "streaming_revenue_potential": number,
-        "vod_revenue_potential": number,
-        "international_sales_potential": number,
-        "ancillary_revenue_streams": ["list"]
+        "theatrical_revenue_potential": number, // Traditional movie theater revenue
+        "streaming_revenue_potential": number,   // Netflix/Amazon/Apple TV+ deals
+        "vod_revenue_potential": number,         // Video-on-demand rentals/purchases
+        "international_sales_potential": number, // Foreign market sales
+        "ancillary_revenue_streams": ["list"],   // TV, merchandise, etc.
+        "platform_strategy_explanation": "string", // EXPLAIN: Which distribution method is best for this movie and why?
+        "streaming_deal_scenarios": {{
+            "netflix_acquisition_estimate": number, // Estimated Netflix purchase price
+            "day_and_date_streaming": number,       // Simultaneous theater + streaming revenue
+            "streaming_exclusive_value": number,    // Value if it goes streaming-only
+            "streaming_explanation": "string"       // EXPLAIN: How streaming deals work vs theatrical
+        }},
+        "modern_distribution_reality": "string" // EXPLAIN: How movies actually make money in 2024+ (not just theaters)
     }},
     "marketing_efficiency": {{
         "recommended_marketing_spend": number,
@@ -325,14 +349,46 @@ RESPOND WITH VALID JSON:
         "viral_potential_score": number,
         "social_media_strategy": "string"
     }},
-    "overall_financial_score": number,     // 0-10 overall financial viability
-    "confidence_level": number,            // 0-1 statistical confidence
-    "recommendation": "string"             // Clear investment recommendation
+    "risk_assessment_detailed": {{
+        "overall_risk_score": number,      // 0-10 (0=very risky, 10=very safe)
+        "risk_score_explanation": "string", // EXPLAIN: How did you calculate this risk score? What makes it risky/safe?
+        "major_risk_factors": ["list"],     // Top 3-5 things that could go wrong
+        "risk_mitigation_strategies": ["list"], // How to reduce these risks
+        "comparable_film_performance": "string", // EXPLAIN: How did similar movies perform financially?
+        "market_conditions_impact": "string"     // EXPLAIN: How current market affects this movie's chances
+    }},
+    "overall_financial_score": number,     // 0-10 overall financial viability score
+    "financial_score_breakdown": {{
+        "score_explanation": "string",     // EXPLAIN: Why this score? What factors went into it?
+        "profit_probability": number,      // 0-100% chance this movie will be profitable
+        "loss_probability": number,        // 0-100% chance this movie will lose money
+        "breakout_hit_probability": number, // 0-100% chance this becomes a surprise success
+        "what_score_means": "string"       // EXPLAIN: What does a 7/10 vs 4/10 financial score actually mean?
+    }},
+    "executive_summary": {{
+        "bottom_line_recommendation": "string", // CLEAR: Should you invest in this movie? Yes/No and why?
+        "best_case_scenario": "string",         // EXPLAIN: If everything goes right, what happens?
+        "worst_case_scenario": "string",        // EXPLAIN: If everything goes wrong, what happens?
+        "most_likely_outcome": "string",        // EXPLAIN: What will probably actually happen?
+        "key_success_factors": ["list"],        // Top 3 things that need to go right for success
+        "deal_breakers": ["list"]               // Top 3 things that would make this a bad investment
+    }},
+    "confidence_level": number,            // 0-1 how confident we are in this analysis
+    "confidence_explanation": "string"     // EXPLAIN: Why are we confident/not confident in these predictions?
 }}
 
 ANALYSIS GUIDELINES:
 - Use statistical modeling and data-driven projections
 - Consider current market conditions and trends
+- ALWAYS fill in every "_explanation" field with clear, simple explanations
+- Assume the reader is smart but doesn't know film finance jargon
+- Show your math wherever possible (e.g., "$25M production + $15M marketing = $40M total cost")
+- Include specific examples and comparisons to real movies when possible
+- Make risk assessments actionable - what can be done to improve odds?
+- Consider both traditional theatrical and modern streaming distribution models
+- Be honest about uncertainty - explain what could change these projections
+
+IMPORTANT: Every explanation field must be filled with substantial, helpful content. Don't just restate the number - explain WHY and HOW.
 - Factor in genre-specific performance patterns
 - Include risk-adjusted returns and sensitivity analysis
 - Provide actionable financial recommendations
@@ -365,7 +421,7 @@ Provide comprehensive, mathematically sound financial analysis with clear reason
                     }
                 ],
                 "temperature": 0.1,  # Low temperature for consistent financial analysis
-                "max_tokens": 4000,
+                "max_completion_tokens": 4000,
                 "response_format": {"type": "json_object"}
             }
             
@@ -551,6 +607,7 @@ Provide comprehensive, mathematically sound financial analysis with clear reason
             'deepseek_roi_analysis': json.dumps(result.roi_analysis) if result.roi_analysis else None,
             'deepseek_risk_assessment': json.dumps(result.risk_assessment) if result.risk_assessment else None,
             'deepseek_production_optimization': json.dumps(result.production_optimization) if result.production_optimization else None,
+            'deepseek_platform_analysis': json.dumps(result.platform_analysis) if getattr(result, 'platform_analysis', None) else None,
             'deepseek_financial_score': float(result.overall_financial_score) if result.overall_financial_score is not None else None,
             'deepseek_confidence': float(result.confidence_level) if result.confidence_level is not None else None,
             'deepseek_recommendation': str(result.recommendation) if result.recommendation else None,

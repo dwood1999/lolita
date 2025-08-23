@@ -124,7 +124,7 @@ class PerplexityAnalyzer:
                 {"role": "user", "content": prompt}
             ],
             "temperature": 0.2,
-            "max_tokens": 500
+            "max_completion_tokens": 500
         }
         
         timeout = httpx.Timeout(connect=30.0, read=60.0, write=30.0, pool=30.0)

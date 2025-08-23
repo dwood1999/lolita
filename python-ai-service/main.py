@@ -6,7 +6,7 @@ Python backend for AI-powered screenplay analysis with Claude Opus 4.1
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from typing import Optional, List, Dict, Any, AsyncGenerator
 import os
 import json
@@ -23,7 +23,7 @@ from claude_analyzer import ClaudeOpusAnalyzer, AnalysisResult
 from grok_analyzer import GrokAnalyzer
 from openai_analyzer import OpenAIAnalyzer
 from gpt5_analyzer import GPT5Analyzer
-from piapi_analyzer import PiAPIAnalyzer
+# from piapi_analyzer import PiAPIAnalyzer  # Commented out - not working
 from flux_analyzer import FluxAnalyzer
 from poster_manager import PosterManager
 from source_material_analyzer import SourceMaterialAnalyzer
@@ -34,6 +34,7 @@ from cost_tracker import CostTracker
 from budget_utils import estimate_budget_from_screenplay, categorize_budget
 
 load_dotenv(dotenv_path='../.env')
+POSTER_GENERATION_ENABLED = os.getenv("POSTER_GENERATION_ENABLED", "true").lower() == "true"
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -66,9 +67,9 @@ try:
     grok_analyzer = GrokAnalyzer()
     openai_analyzer = OpenAIAnalyzer()
     gpt5_analyzer = GPT5Analyzer()
-    piapi_analyzer = PiAPIAnalyzer()
+    # piapi_analyzer = PiAPIAnalyzer()  # Commented out - not working
     flux_analyzer = FluxAnalyzer()
-    poster_manager = PosterManager()
+    poster_manager = PosterManager() if POSTER_GENERATION_ENABLED else None
     source_material_analyzer = SourceMaterialAnalyzer()
     deepseek_analyzer = DeepSeekAnalyzer()
     perplexity_analyzer = PerplexityAnalyzer()
@@ -105,34 +106,70 @@ def get_progress(analysis_id: str) -> Dict[str, Any]:
     })
 
 async def progress_stream(analysis_id: str) -> AsyncGenerator[str, None]:
-    """Stream progress updates for an analysis"""
+    """Stream progress updates for an analysis with improved error handling"""
     last_update = 0
     timeout_count = 0
-    max_timeout = 300  # 5 minutes timeout
+    max_timeout = 600  # 10 minutes timeout (increased for long analyses)
+    heartbeat_interval = 5  # Send heartbeat every 5 seconds
     
-    while timeout_count < max_timeout:
-        current_progress = get_progress(analysis_id)
-        current_time = current_progress.get('timestamp', 0)
-        
-        # Send update if there's new progress
-        if current_time > last_update:
-            data = json.dumps(current_progress)
-            yield f"data: {data}\n\n"
-            last_update = current_time
-            timeout_count = 0
-            
-            # Check if analysis is complete
-            if current_progress.get('progress', 0) >= 100:
-                break
-        else:
-            # Send heartbeat every 5 seconds
-            yield f"data: {json.dumps({'heartbeat': True, 'timestamp': time.time()})}\n\n"
-            timeout_count += 1
-        
-        await asyncio.sleep(1)
+    logger.info(f"📊 Starting progress stream for analysis: {analysis_id}")
     
-    # Send final completion message
-    yield f"data: {json.dumps({'stage': 'complete', 'progress': 100, 'message': 'Stream ended'})}\n\n"
+    try:
+        # Send initial connection confirmation
+        yield f"data: {json.dumps({'heartbeat': True, 'connected': True, 'timestamp': time.time()})}\n\n"
+        
+        while timeout_count < max_timeout:
+            try:
+                current_progress = get_progress(analysis_id)
+                current_time = current_progress.get('timestamp', 0)
+                
+                # Send update if there's new progress
+                if current_time > last_update:
+                    data = json.dumps(current_progress)
+                    yield f"data: {data}\n\n"
+                    last_update = current_time
+                    timeout_count = 0
+                    
+                    logger.debug(f"📊 Progress update sent for {analysis_id}: {current_progress.get('stage', 'unknown')} ({current_progress.get('progress', 0)}%)")
+                    
+                    # Check if analysis is complete or errored
+                    if current_progress.get('progress', 0) >= 100 or current_progress.get('stage') in ['complete', 'error']:
+                        logger.info(f"✅ Analysis stream completed for {analysis_id}")
+                        break
+                else:
+                    # Send heartbeat every 5 seconds
+                    if timeout_count % heartbeat_interval == 0:
+                        yield f"data: {json.dumps({'heartbeat': True, 'timestamp': time.time()})}\n\n"
+                    timeout_count += 1
+                
+                await asyncio.sleep(1)
+                
+            except Exception as e:
+                logger.error(f"❌ Error in progress stream for {analysis_id}: {e}")
+                # Send error to client but continue trying
+                error_data = json.dumps({
+                    'stage': 'error',
+                    'progress': 0,
+                    'message': f'Streaming error: {str(e)}',
+                    'timestamp': time.time()
+                })
+                yield f"data: {error_data}\n\n"
+                await asyncio.sleep(5)  # Wait longer on errors
+                
+    except Exception as e:
+        logger.error(f"❌ Critical error in progress stream for {analysis_id}: {e}")
+        # Send final error message
+        error_data = json.dumps({
+            'stage': 'error', 
+            'progress': 0, 
+            'message': f'Stream failed: {str(e)}',
+            'timestamp': time.time()
+        })
+        yield f"data: {error_data}\n\n"
+    finally:
+        # Send final completion message
+        logger.info(f"🔚 Progress stream ended for {analysis_id}")
+        yield f"data: {json.dumps({'stage': 'stream_ended', 'progress': 100, 'message': 'Stream ended', 'timestamp': time.time()})}\n\n"
 
 # Request/Response Models
 class AnalysisRequest(BaseModel):
@@ -142,7 +179,8 @@ class AnalysisRequest(BaseModel):
     user_id: str
     budget_estimate: Optional[float] = None
     
-    @validator('budget_estimate')
+    @field_validator('budget_estimate')
+    @classmethod
     def validate_budget(cls, v):
         if v is not None:
             if v < 0:
@@ -247,7 +285,7 @@ async def analyze_text(
             'raw_api_response': None
         }
         
-        if not db.save_analysis(initial_data):
+        if not db.insert_initial_analysis(initial_data):
             raise HTTPException(status_code=500, detail="Failed to create analysis record")
         
         # Start background analysis
@@ -374,7 +412,7 @@ async def analyze_pdf(
             'raw_api_response': None
         }
         
-        if not db.save_analysis(initial_data):
+        if not db.insert_initial_analysis(initial_data):
             raise HTTPException(status_code=500, detail="Failed to create analysis record")
         
         # Start background analysis
@@ -547,7 +585,12 @@ async def process_text_analysis(
         if budget_estimate:
             # User provided budget - categorize it
             budget_category = categorize_budget(budget_estimate)
-            budget_notes = f"User-specified budget: ${budget_estimate:,.0f} ({budget_category} tier)"
+            budget_notes = {
+                "type": "user_specified",
+                "amount": budget_estimate,
+                "category": budget_category,
+                "note": f"User-specified budget: ${budget_estimate:,.0f} ({budget_category} tier)"
+            }
         else:
             # AI estimate budget from screenplay content
             try:
@@ -555,7 +598,15 @@ async def process_text_analysis(
                     screenplay_text, title, genre or "Drama"
                 )
                 budget_category = categorize_budget(ai_budget_optimal)
-                budget_notes = f"AI estimated budget range. {budget_reasoning}"
+                budget_notes = {
+                    "type": "ai_estimated",
+                    "min_budget": ai_budget_min,
+                    "optimal_budget": ai_budget_optimal,
+                    "max_budget": ai_budget_max,
+                    "category": budget_category,
+                    "reasoning": budget_reasoning,
+                    "note": f"AI estimated budget range. {budget_reasoning}"
+                }
                 
                 update_progress(analysis_id, "budget_estimated", 22, f"Budget estimated: ${ai_budget_optimal:,.0f} ({budget_category})", {
                     "min_budget": f"${ai_budget_min:,.0f}",
@@ -565,7 +616,11 @@ async def process_text_analysis(
                 })
             except Exception as e:
                 logger.warning(f"Budget estimation failed: {e}")
-                budget_notes = "Budget estimation unavailable"
+                budget_notes = {
+                    "type": "unavailable",
+                    "note": "Budget estimation unavailable",
+                    "error": "Budget estimation failed"
+                }
 
         # Start Claude analysis (primary - needed for genre detection)
         update_progress(analysis_id, "claude_analysis", 25, "Starting Claude Opus 4.1 analysis...", {
@@ -638,25 +693,30 @@ async def process_text_analysis(
             target_audience=None   # Could be derived from analysis
         ))
         
-        # Enhanced poster collection generation task
-        tasks.append(poster_manager.generate_poster_collection(
-            title=title,
-            genre=genre or (result.genre if result else "Drama"),
-            analysis_data={
-                'score': result.overall_score if result else 7.0,
-                'recommendation': result.recommendation if result else "Consider",
-                'themes': getattr(result, 'themes', []) if result else [],
-                'tone': getattr(result, 'tone', 'dramatic') if result else 'dramatic',
-                'main_characters': getattr(result, 'main_characters', []) if result else []
-            },
-            variations=['theatrical', 'character']  # Generate 2 main variations
-        ))
+        # Enhanced poster collection generation task (feature-flagged)
+        if POSTER_GENERATION_ENABLED and poster_manager is not None:
+            tasks.append(poster_manager.generate_poster_collection(
+                title=title,
+                genre=genre or (result.genre if result else "Drama"),
+                analysis_data={
+                    'score': result.overall_score if result else 7.0,
+                    'recommendation': result.recommendation if result else "Consider",
+                    'themes': getattr(result, 'themes', []) if result else [],
+                    'tone': getattr(result, 'tone', 'dramatic') if result else 'dramatic',
+                    'main_characters': getattr(result, 'main_characters', []) if result else []
+                },
+                variations=['theatrical', 'character']  # Generate 2 main variations
+            ))
         
         # Execute all tasks in parallel
         logger.info(f"🔧 Executing {len(tasks)} parallel tasks...")
         parallel_results = await asyncio.gather(*tasks, return_exceptions=True)
         logger.info(f"🔧 Parallel results count: {len(parallel_results)}")
-        grok_result, openai_result, gpt5_result, deepseek_result, perplexity_result, poster_collection = parallel_results
+        if POSTER_GENERATION_ENABLED and poster_manager is not None:
+            grok_result, openai_result, gpt5_result, deepseek_result, perplexity_result, poster_collection = parallel_results
+        else:
+            grok_result, openai_result, gpt5_result, deepseek_result, perplexity_result = parallel_results
+            poster_collection = None
         logger.info(f"🔧 Poster collection type: {type(poster_collection)}")
         logger.info(f"🔧 Poster collection is Exception: {isinstance(poster_collection, Exception)}")
         if hasattr(poster_collection, 'success_count'):
@@ -738,7 +798,8 @@ async def process_text_analysis(
                 "total_cost": f"${poster_collection.total_cost:.4f}"
             })
         else:
-            update_progress(analysis_id, "posters_skipped", 85, "Poster generation skipped (no APIs available)")
+            reason = "Poster generation disabled" if not (POSTER_GENERATION_ENABLED and poster_manager is not None) else "Poster generation skipped (no APIs available)"
+            update_progress(analysis_id, "posters_skipped", 85, reason)
         
         # Convert to database format
         update_progress(analysis_id, "saving", 92, "Saving analysis results to database...")
@@ -928,7 +989,12 @@ async def process_pdf_analysis(
         if budget_estimate:
             # User provided budget - categorize it
             budget_category = categorize_budget(budget_estimate)
-            budget_notes = f"User-specified budget: ${budget_estimate:,.0f} ({budget_category} tier)"
+            budget_notes = {
+                "type": "user_specified",
+                "amount": budget_estimate,
+                "category": budget_category,
+                "note": f"User-specified budget: ${budget_estimate:,.0f} ({budget_category} tier)"
+            }
         else:
             # AI estimate budget from screenplay content
             try:
@@ -936,7 +1002,15 @@ async def process_pdf_analysis(
                     pdf_result.extracted_text, title, genre or "Drama"
                 )
                 budget_category = categorize_budget(ai_budget_optimal)
-                budget_notes = f"AI estimated budget range. {budget_reasoning}"
+                budget_notes = {
+                    "type": "ai_estimated",
+                    "min_budget": ai_budget_min,
+                    "optimal_budget": ai_budget_optimal,
+                    "max_budget": ai_budget_max,
+                    "category": budget_category,
+                    "reasoning": budget_reasoning,
+                    "note": f"AI estimated budget range. {budget_reasoning}"
+                }
                 
                 update_progress(analysis_id, "budget_estimated", 27, f"Budget estimated: ${ai_budget_optimal:,.0f} ({budget_category})", {
                     "min_budget": f"${ai_budget_min:,.0f}",
@@ -946,7 +1020,11 @@ async def process_pdf_analysis(
                 })
             except Exception as e:
                 logger.warning(f"Budget estimation failed: {e}")
-                budget_notes = "Budget estimation unavailable"
+                budget_notes = {
+                    "type": "unavailable",
+                    "note": "Budget estimation unavailable",
+                    "error": "Budget estimation failed"
+                }
 
         # Start Claude analysis (primary - with built-in retry for 529 errors)
         result = None
@@ -1049,25 +1127,30 @@ async def process_pdf_analysis(
             target_audience=getattr(result, 'target_audience', 'General audiences') if result else 'General audiences'
         ))
         
-        # Enhanced poster collection generation task
-        tasks.append(poster_manager.generate_poster_collection(
-            title=title,
-            genre=genre or (result.genre if result else "Drama"),
-            analysis_data={
-                'score': result.overall_score if result else 7.0,
-                'recommendation': result.recommendation if result else "Consider",
-                'themes': getattr(result, 'themes', []) if result else [],
-                'tone': getattr(result, 'tone', 'dramatic') if result else 'dramatic',
-                'main_characters': getattr(result, 'main_characters', []) if result else []
-            },
-            variations=['theatrical', 'character']  # Generate 2 main variations
-        ))
+        # Enhanced poster collection generation task (feature-flagged)
+        if POSTER_GENERATION_ENABLED and poster_manager is not None:
+            tasks.append(poster_manager.generate_poster_collection(
+                title=title,
+                genre=genre or (result.genre if result else "Drama"),
+                analysis_data={
+                    'score': result.overall_score if result else 7.0,
+                    'recommendation': result.recommendation if result else "Consider",
+                    'themes': getattr(result, 'themes', []) if result else [],
+                    'tone': getattr(result, 'tone', 'dramatic') if result else 'dramatic',
+                    'main_characters': getattr(result, 'main_characters', []) if result else []
+                },
+                variations=['theatrical', 'character']  # Generate 2 main variations
+            ))
         
         # Execute all tasks in parallel
         logger.info(f"🔧 Executing {len(tasks)} parallel tasks...")
         parallel_results = await asyncio.gather(*tasks, return_exceptions=True)
         logger.info(f"🔧 Parallel results count: {len(parallel_results)}")
-        grok_result, openai_result, gpt5_result, deepseek_result, perplexity_result, poster_collection = parallel_results
+        if POSTER_GENERATION_ENABLED and poster_manager is not None:
+            grok_result, openai_result, gpt5_result, deepseek_result, perplexity_result, poster_collection = parallel_results
+        else:
+            grok_result, openai_result, gpt5_result, deepseek_result, perplexity_result = parallel_results
+            poster_collection = None
         logger.info(f"🔧 Poster collection type: {type(poster_collection)}")
         logger.info(f"🔧 Poster collection is Exception: {isinstance(poster_collection, Exception)}")
         if hasattr(poster_collection, 'success_count'):
@@ -1125,7 +1208,8 @@ async def process_pdf_analysis(
                 "total_cost": f"${poster_collection.total_cost:.4f}"
             })
         else:
-            update_progress(analysis_id, "posters_skipped", 80, "Poster generation skipped (no APIs available)")
+            reason = "Poster generation disabled" if not (POSTER_GENERATION_ENABLED and poster_manager is not None) else "Poster generation skipped (no APIs available)"
+            update_progress(analysis_id, "posters_skipped", 80, reason)
         
         # Convert to database format
         update_progress(analysis_id, "saving", 90, "Saving analysis results to database...")
@@ -1261,6 +1345,6 @@ if __name__ == "__main__":
         "main:app",
         host="0.0.0.0",
         port=port,
-        reload=True,
+        reload=False,  # Disable reload to prevent constant crashes
         log_level="info"
     )

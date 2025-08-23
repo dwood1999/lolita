@@ -127,7 +127,10 @@ class GrokAnalyzer:
             return result
             
         except Exception as e:
-            logger.error(f"❌ Grok analysis failed: {e}")
+            logger.error(f"❌ Grok analysis failed: {type(e).__name__}: {str(e)}")
+            logger.error(f"❌ Grok error details: {repr(e)}")
+            import traceback
+            logger.error(f"❌ Grok traceback: {traceback.format_exc()}")
             return None
     
     def _create_prompt(self, screenplay_text: str, title: str, genre: str, budget_estimate: Optional[float] = None) -> str:
@@ -299,7 +302,7 @@ Provide analysis as JSON with these exact keys:
                     "content": prompt
                 }
             ],
-            "max_tokens": 3000,  # Increased for enhanced analysis with all categories
+            "max_completion_tokens": 3000,  # Increased for enhanced analysis with all categories
             "temperature": 0.7,   # Higher temperature for more creative/brutal responses
             "stream": False
         }

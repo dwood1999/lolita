@@ -16,6 +16,16 @@ class ScreenplayDatabase:
         self.host = os.getenv("DB_HOST")
         self.user = os.getenv("DB_USER") 
         self.password = os.getenv("DB_PASSWORD")
+        # Fix password handling - remove quotes if present and handle $ characters properly
+        if self.password:
+            # Remove surrounding quotes if present
+            if self.password.startswith('"') and self.password.endswith('"'):
+                self.password = self.password[1:-1]
+            elif self.password.startswith("'") and self.password.endswith("'"):
+                self.password = self.password[1:-1]
+            # Fix password escaping issue - remove extra backslash if present
+            if '\\$' in self.password:
+                self.password = self.password.replace('\\$', '$')
         self.database = os.getenv("DB_NAME")
         
         # Use connection pooling for better performance
@@ -225,6 +235,36 @@ class ScreenplayDatabase:
         """Save analysis results to database"""
         try:
             cursor = self.connection.cursor()
+            # Defensive: ensure JSON types are serialized
+            try:
+                if isinstance(analysis_data.get('budget_notes'), (dict, list)):
+                    analysis_data['budget_notes'] = json.dumps(analysis_data['budget_notes'])
+            except Exception:
+                pass
+            
+            # Defensive: ensure timestamp format compatible with MySQL for perplexity_research_date
+            try:
+                research_date = analysis_data.get('perplexity_research_date')
+                if research_date:
+                    # Accept datetime, or ISO strings like 2025-08-23T08:15:30.123456
+                    if isinstance(research_date, datetime):
+                        analysis_data['perplexity_research_date'] = research_date.strftime('%Y-%m-%d %H:%M:%S')
+                    elif isinstance(research_date, str):
+                        # Convert ISO 8601 to MySQL DATETIME
+                        iso_str = research_date.replace('Z', '+00:00')
+                        try:
+                            dt = datetime.fromisoformat(iso_str)
+                            analysis_data['perplexity_research_date'] = dt.strftime('%Y-%m-%d %H:%M:%S')
+                        except Exception:
+                            # Fallback: try trimming at 'T'
+                            if 'T' in research_date:
+                                analysis_data['perplexity_research_date'] = research_date.split('T')[0] + ' ' + research_date.split('T')[1].split('.')[0]
+                            else:
+                                # As a last resort, drop the value to avoid insert failure
+                                analysis_data['perplexity_research_date'] = None
+            except Exception:
+                # Do not block save on formatting issues
+                pass
             
             query = """
                 INSERT INTO screenplay_analyses (
@@ -248,7 +288,7 @@ class ScreenplayDatabase:
                     deepseek_budget_optimization, deepseek_confidence, deepseek_cost, deepseek_error_message,
                     deepseek_financial_score, deepseek_processing_time, deepseek_production_optimization,
                     deepseek_raw_response, deepseek_recommendation, deepseek_risk_assessment,
-                    deepseek_roi_analysis, deepseek_success,
+                    deepseek_roi_analysis, deepseek_success, deepseek_platform_analysis,
                     perplexity_competitive_advantage, perplexity_competitive_analysis, perplexity_cost,
                     perplexity_data_freshness, perplexity_distribution_strategy, perplexity_error_message,
                     perplexity_financial_intelligence, perplexity_industry_reports, perplexity_market_score,
@@ -289,7 +329,7 @@ class ScreenplayDatabase:
                     %s, %s, %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
-                    %s, %s, %s, %s
+                    %s, %s, %s, %s, %s
                 )
                 ON DUPLICATE KEY UPDATE
                     user_id = VALUES(user_id),
@@ -367,6 +407,7 @@ class ScreenplayDatabase:
                     deepseek_risk_assessment = VALUES(deepseek_risk_assessment),
                     deepseek_roi_analysis = VALUES(deepseek_roi_analysis),
                     deepseek_success = VALUES(deepseek_success),
+                    deepseek_platform_analysis = VALUES(deepseek_platform_analysis),
                     perplexity_competitive_advantage = VALUES(perplexity_competitive_advantage),
                     perplexity_competitive_analysis = VALUES(perplexity_competitive_analysis),
                     perplexity_cost = VALUES(perplexity_cost),
@@ -461,7 +502,7 @@ class ScreenplayDatabase:
                 analysis_data.get('deepseek_production_optimization'),
                 analysis_data.get('deepseek_raw_response'), analysis_data.get('deepseek_recommendation'), 
                 analysis_data.get('deepseek_risk_assessment'),
-                analysis_data.get('deepseek_roi_analysis'), analysis_data.get('deepseek_success'),
+                analysis_data.get('deepseek_roi_analysis'), analysis_data.get('deepseek_success'), analysis_data.get('deepseek_platform_analysis'),
                 # Perplexity fields
                 analysis_data.get('perplexity_competitive_advantage'), analysis_data.get('perplexity_competitive_analysis'), 
                 analysis_data.get('perplexity_cost'),
@@ -502,6 +543,38 @@ class ScreenplayDatabase:
             
         except Error as e:
             logger.error(f"❌ Error saving analysis: {e}")
+            return False
+
+    def insert_initial_analysis(self, initial_data: Dict[str, Any]) -> bool:
+        """Insert an initial minimal analysis row to avoid placeholder mismatches"""
+        try:
+            cursor = self.connection.cursor()
+
+            query = (
+                "INSERT INTO screenplay_analyses ("
+                "id, user_id, title, original_filename, file_path, file_size, "
+                "genre, ai_model, status, user_proposed_budget"
+                ") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE "
+                "title = VALUES(title), original_filename = VALUES(original_filename), "
+                "file_path = VALUES(file_path), file_size = VALUES(file_size), "
+                "genre = VALUES(genre), ai_model = VALUES(ai_model), status = VALUES(status), "
+                "user_proposed_budget = VALUES(user_proposed_budget), updated_at = CURRENT_TIMESTAMP"
+            )
+
+            values = (
+                initial_data.get('id'), initial_data.get('user_id'), initial_data.get('title'),
+                initial_data.get('original_filename'), initial_data.get('file_path'), initial_data.get('file_size'),
+                initial_data.get('genre'), initial_data.get('ai_model'), initial_data.get('status'),
+                initial_data.get('user_proposed_budget')
+            )
+
+            cursor.execute(query, values)
+            self.connection.commit()
+            return True
+        
+        except Error as e:
+            logger.error(f"❌ Error inserting initial analysis: {e}")
             return False
     
     def get_analysis(self, analysis_id: str) -> Optional[Dict[str, Any]]:

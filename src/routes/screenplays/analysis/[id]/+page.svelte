@@ -1786,10 +1786,25 @@
 											</div>
 										{/if}
 									</div>
-									{#if prediction.methodology}
-										<div class="mt-4 p-3 bg-gray-50 rounded-lg">
-											<div class="text-sm font-medium text-gray-700 mb-1">Methodology</div>
-											<div class="text-sm text-gray-600">{prediction.methodology}</div>
+									{#if prediction.methodology_explanation || prediction.methodology || prediction.why_these_numbers}
+										<div class="mt-4 p-3 bg-gray-50 rounded-lg space-y-3">
+											{#if prediction.methodology_explanation}
+												<div>
+													<div class="text-sm font-medium text-gray-700 mb-1">Methodology</div>
+													<div class="text-sm text-gray-600">{prediction.methodology_explanation}</div>
+												</div>
+											{:else if prediction.methodology}
+												<div>
+													<div class="text-sm font-medium text-gray-700 mb-1">Methodology</div>
+													<div class="text-sm text-gray-600">{prediction.methodology}</div>
+												</div>
+											{/if}
+											{#if prediction.why_these_numbers}
+												<div>
+													<div class="text-sm font-medium text-gray-700 mb-1">Why These Numbers</div>
+													<div class="text-sm text-gray-600">{prediction.why_these_numbers}</div>
+												</div>
+											{/if}
 										</div>
 									{/if}
 								</div>
@@ -1831,6 +1846,92 @@
 											</div>
 										{/if}
 									</div>
+									{#if roi.break_even_explanation || roi.roi_explanation || roi.payback_explanation || roi.npv_explanation || roi.irr_explanation}
+										<div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+											{#if roi.break_even_explanation}
+												<div>
+													<div class="text-sm font-medium text-gray-700">Break-even Explained</div>
+													<div class="text-sm text-gray-600">{roi.break_even_explanation}</div>
+												</div>
+											{/if}
+											{#if roi.roi_explanation}
+												<div>
+													<div class="text-sm font-medium text-gray-700">ROI Explained</div>
+													<div class="text-sm text-gray-600">{roi.roi_explanation}</div>
+												</div>
+											{/if}
+											{#if roi.payback_explanation}
+												<div>
+													<div class="text-sm font-medium text-gray-700">Payback Period Explained</div>
+													<div class="text-sm text-gray-600">{roi.payback_explanation}</div>
+												</div>
+											{/if}
+											{#if roi.npv_explanation}
+												<div>
+													<div class="text-sm font-medium text-gray-700">NPV Explained</div>
+													<div class="text-sm text-gray-600">{roi.npv_explanation}</div>
+												</div>
+											{/if}
+											{#if roi.irr_explanation}
+												<div>
+													<div class="text-sm font-medium text-gray-700">IRR Explained</div>
+													<div class="text-sm text-gray-600">{roi.irr_explanation}</div>
+												</div>
+											{/if}
+										</div>
+									{/if}
+								</div>
+							{/if}
+						{/if}
+
+						<!-- Platform / Streaming Analysis -->
+						{#if analysis.result.deepseek_platform_analysis}
+							{@const platform = typeof analysis.result.deepseek_platform_analysis === 'string' 
+								? JSON.parse(analysis.result.deepseek_platform_analysis) 
+								: analysis.result.deepseek_platform_analysis}
+							{#if platform}
+								<div class="mb-6">
+									<h4 class="text-lg font-semibold text-gray-900 mb-4">Distribution & Streaming Analysis</h4>
+									{#if platform.platform_strategy_explanation}
+										<div class="p-4 bg-gray-50 rounded-lg border border-gray-200 mb-4">
+											<div class="text-sm font-medium text-gray-700 mb-1">Platform Strategy</div>
+											<div class="text-sm text-gray-600">{platform.platform_strategy_explanation}</div>
+										</div>
+									{/if}
+									{#if platform.streaming_deal_scenarios}
+										<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+											{#if platform.streaming_deal_scenarios.netflix_acquisition_estimate}
+												<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+													<div class="text-red-800 font-semibold mb-2">Netflix Acquisition</div>
+													<div class="text-xl font-bold text-red-600">${platform.streaming_deal_scenarios.netflix_acquisition_estimate?.toLocaleString()}</div>
+												</div>
+											{/if}
+											{#if platform.streaming_deal_scenarios.day_and_date_streaming}
+												<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+													<div class="text-yellow-800 font-semibold mb-2">Day-and-Date</div>
+													<div class="text-xl font-bold text-yellow-600">${platform.streaming_deal_scenarios.day_and_date_streaming?.toLocaleString()}</div>
+												</div>
+											{/if}
+											{#if platform.streaming_deal_scenarios.streaming_exclusive_value}
+												<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+													<div class="text-blue-800 font-semibold mb-2">Streaming Exclusive</div>
+													<div class="text-xl font-bold text-blue-600">${platform.streaming_deal_scenarios.streaming_exclusive_value?.toLocaleString()}</div>
+												</div>
+											{/if}
+										</div>
+										{#if platform.streaming_deal_scenarios.streaming_explanation}
+											<div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
+												<div class="text-sm font-medium text-gray-700 mb-1">Streaming Explained</div>
+												<div class="text-sm text-gray-600">{platform.streaming_deal_scenarios.streaming_explanation}</div>
+											</div>
+										{/if}
+									{/if}
+									{#if platform.modern_distribution_reality}
+										<div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+											<div class="text-sm font-medium text-gray-700 mb-1">Modern Distribution Reality</div>
+											<div class="text-sm text-gray-600">{platform.modern_distribution_reality}</div>
+										</div>
+									{/if}
 								</div>
 							{/if}
 						{/if}
@@ -1845,14 +1946,14 @@
 								<div class="mb-6">
 									<h4 class="text-lg font-semibold text-gray-900 mb-4">Risk Assessment</h4>
 									<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-										{#if risk.key_risk_factors}
+										{#if (risk.key_risk_factors || risk.major_risk_factors)}
 											<div class="bg-red-50 border border-red-200 rounded-lg p-4">
 												<h5 class="font-semibold text-red-900 mb-3 flex items-center">
 													<span class="text-red-600 mr-2">⚠️</span>
 													Key Risk Factors
 												</h5>
 												<ul class="space-y-2">
-													{#each risk.key_risk_factors as factor}
+													{#each (risk.key_risk_factors || risk.major_risk_factors) as factor}
 														<li class="text-red-800 text-sm flex items-start">
 															<span class="text-red-600 mr-2">•</span>
 															{factor}
@@ -1861,14 +1962,14 @@
 												</ul>
 											</div>
 										{/if}
-										{#if risk.mitigation_strategies}
+										{#if (risk.mitigation_strategies || risk.risk_mitigation_strategies)}
 											<div class="bg-green-50 border border-green-200 rounded-lg p-4">
 												<h5 class="font-semibold text-green-900 mb-3 flex items-center">
 													<span class="text-green-600 mr-2">🛡️</span>
 													Mitigation Strategies
 												</h5>
 												<ul class="space-y-2">
-													{#each risk.mitigation_strategies as strategy}
+													{#each (risk.mitigation_strategies || risk.risk_mitigation_strategies) as strategy}
 														<li class="text-green-800 text-sm flex items-start">
 															<span class="text-green-600 mr-2">•</span>
 															{strategy}
@@ -1886,6 +1987,9 @@
 													{risk.overall_risk_score}/10
 												</span>
 											</div>
+											{#if risk.risk_score_explanation}
+												<div class="mt-2 text-sm text-gray-600">{risk.risk_score_explanation}</div>
+											{/if}
 										</div>
 									{/if}
 								</div>

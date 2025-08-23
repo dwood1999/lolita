@@ -269,7 +269,7 @@ Provide analysis as JSON with these exact keys:
                     "content": prompt
                 }
             ],
-            "max_tokens": 2500,
+            "max_completion_tokens": 2500,
             "temperature": 1.0,
             "stream": False
         }
@@ -580,7 +580,9 @@ Provide analysis as JSON with these exact keys:
                     if result.get('data') and len(result['data']) > 0:
                         image_url = result['data'][0]['url']
                         logger.info(f"🎨 DALL-E 3 poster generated successfully")
-                        return image_url
+                        # Save image locally for reliable serving
+                        saved_url = await self._save_poster_image(image_url, title)
+                        return saved_url or image_url
                     else:
                         logger.error(f"❌ DALL-E 3 returned no image data")
                         return None
@@ -592,3 +594,25 @@ Provide analysis as JSON with these exact keys:
         except Exception as e:
             logger.error(f"❌ DALL-E 3 API call failed: {e}")
             return None
+
+    async def _save_poster_image(self, image_url: str, title: str) -> Optional[str]:
+        """Download and save generated poster image locally under uploads/posters"""
+        try:
+            import os
+            poster_dir = "uploads/posters"
+            os.makedirs(poster_dir, exist_ok=True)
+            safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).rstrip().replace(' ', '_')
+            filename = f"openai_{safe_title}_{int(time.time())}.png"
+            filepath = os.path.join(poster_dir, filename)
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(image_url)
+                if response.status_code == 200:
+                    with open(filepath, 'wb') as f:
+                        f.write(response.content)
+                    if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                        relative_url = f"/uploads/posters/{filename}"
+                        logger.info(f"✅ OpenAI poster saved: {relative_url} ({os.path.getsize(filepath)} bytes)")
+                        return relative_url
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to save OpenAI poster locally: {e}")
+        return None
