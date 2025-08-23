@@ -1719,290 +1719,648 @@
 			</div>
 
 		{:else if activeTab === 'financial'}
-			<!-- Financial Analysis Tab -->
-			<div class="space-y-6">
+			<!-- Enhanced Financial Analysis Tab -->
+			<div class="space-y-8">
 				{#if analysis.result.deepseek_financial_score || analysis.result.deepseek_box_office_prediction}
-					<!-- DeepSeek Financial Analysis -->
-					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-						<h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
-							<span class="text-green-600 mr-2">💰</span>
-							Financial Analysis & Box Office Prediction
-							<span class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">DeepSeek AI</span>
-						</h3>
-						
-						<!-- Financial Score Overview -->
-						{#if analysis.result.deepseek_financial_score}
-							<div class="mb-6 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
-								<div class="flex items-center justify-between">
+					<!-- Header with AI Badge -->
+					<div class="bg-gradient-to-r from-emerald-500 via-blue-600 to-purple-600 rounded-xl p-1 shadow-lg">
+						<div class="bg-white rounded-lg p-6">
+							<div class="flex items-center justify-between">
+								<div class="flex items-center space-x-3">
+									<span class="text-3xl">💰</span>
 									<div>
-										<h4 class="text-lg font-semibold text-gray-900 mb-2">Overall Financial Viability</h4>
-										<p class="text-gray-600">{analysis.result.deepseek_recommendation || 'Investment analysis complete'}</p>
+										<h2 class="text-2xl font-bold text-gray-900">Financial Analysis & Box Office Prediction</h2>
+										<p class="text-gray-600">Comprehensive investment intelligence powered by AI</p>
 									</div>
-									<div class="text-center">
-										<div class="text-3xl font-bold text-green-600">
-											{analysis.result.deepseek_financial_score}/10
+								</div>
+								<div class="flex items-center space-x-2">
+									<span class="text-xs bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 px-3 py-2 rounded-full font-medium">DeepSeek AI</span>
+									<span class="text-xs bg-green-100 text-green-800 px-3 py-2 rounded-full font-medium">Real-time Analysis</span>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- 1. EXECUTIVE SUMMARY SECTION -->
+					{#if analysis.result.deepseek_financial_score}
+						<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+							<div class="bg-gradient-to-r from-green-50 to-blue-50 px-6 py-4 border-b border-gray-200">
+								<h3 class="text-xl font-bold text-gray-900 flex items-center">
+									<span class="text-green-600 mr-3">📊</span>
+									Executive Summary
+								</h3>
+							</div>
+							<div class="p-6">
+								<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+									<!-- Financial Score -->
+									<div class="lg:col-span-2">
+										<div class="flex items-start space-x-4">
+											<div class="flex-shrink-0">
+												<div class="w-20 h-20 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+													<span class="text-white text-2xl font-bold">{analysis.result.deepseek_financial_score}</span>
+												</div>
+											</div>
+											<div class="flex-1">
+												<h4 class="text-xl font-semibold text-gray-900 mb-2">Overall Financial Viability</h4>
+												<div class="w-full bg-gray-200 rounded-full h-3 mb-3">
+													<div class="bg-gradient-to-r from-green-400 to-blue-500 h-3 rounded-full transition-all duration-500" 
+														 style="width: {(analysis.result.deepseek_financial_score / 10) * 100}%"></div>
+												</div>
+												<p class="text-gray-600 text-sm leading-relaxed">
+													{analysis.result.deepseek_recommendation || 'Investment analysis complete. This score reflects overall financial viability based on market analysis, risk assessment, and revenue projections.'}
+												</p>
+											</div>
 										</div>
-										<div class="text-sm text-gray-500">Financial Score</div>
+									</div>
+									<!-- Quick Stats -->
+									<div class="space-y-4">
+										{#if analysis.result.deepseek_confidence}
+											<div class="bg-gray-50 rounded-lg p-4">
+												<div class="text-sm font-medium text-gray-700">Confidence Level</div>
+												<div class="text-2xl font-bold text-gray-900">{Math.round(analysis.result.deepseek_confidence * 100)}%</div>
+											</div>
+										{/if}
+										<div class="bg-gray-50 rounded-lg p-4">
+											<div class="text-sm font-medium text-gray-700">Analysis Depth</div>
+											<div class="text-lg font-semibold text-gray-900">Comprehensive</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					{/if}
+
+					<!-- 2. BOX OFFICE & REVENUE SECTION -->
+					<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+						<div class="bg-gradient-to-r from-yellow-50 to-orange-50 px-6 py-4 border-b border-gray-200">
+							<h3 class="text-xl font-bold text-gray-900 flex items-center">
+								<span class="text-yellow-600 mr-3">🎯</span>
+								Box Office & Revenue Projections
+							</h3>
+						</div>
+						<div class="p-6 space-y-6">
+							<!-- Box Office Predictions -->
+							{#if analysis.result.deepseek_box_office_prediction}
+								{@const prediction = typeof analysis.result.deepseek_box_office_prediction === 'string' 
+									? JSON.parse(analysis.result.deepseek_box_office_prediction) 
+									: analysis.result.deepseek_box_office_prediction}
+								
+								{#if prediction}
+									<div>
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-blue-500 mr-2">📈</span>
+											Box Office Prediction Model
+										</h4>
+										<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+											{#if prediction.conservative_scenario}
+												<div class="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl p-6 text-center transform hover:scale-105 transition-transform duration-200">
+													<div class="text-red-800 font-semibold mb-2 flex items-center justify-center">
+														<span class="mr-2">📉</span>
+														Conservative (P10)
+													</div>
+													<div class="text-3xl font-bold text-red-600 mb-2">
+														${prediction.conservative_scenario?.toLocaleString()}
+													</div>
+													<div class="text-sm text-red-600 bg-red-100 px-3 py-1 rounded-full">10% chance of doing worse</div>
+												</div>
+											{/if}
+											{#if prediction.expected_scenario}
+												<div class="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-300 rounded-xl p-6 text-center transform hover:scale-105 transition-transform duration-200 ring-2 ring-yellow-300">
+													<div class="text-yellow-800 font-semibold mb-2 flex items-center justify-center">
+														<span class="mr-2">📊</span>
+														Expected (P50)
+													</div>
+													<div class="text-3xl font-bold text-yellow-700 mb-2">
+														${prediction.expected_scenario?.toLocaleString()}
+													</div>
+													<div class="text-sm text-yellow-700 bg-yellow-100 px-3 py-1 rounded-full">Most likely outcome</div>
+												</div>
+											{/if}
+											{#if prediction.optimistic_scenario}
+												<div class="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-6 text-center transform hover:scale-105 transition-transform duration-200">
+													<div class="text-green-800 font-semibold mb-2 flex items-center justify-center">
+														<span class="mr-2">📈</span>
+														Optimistic (P90)
+													</div>
+													<div class="text-3xl font-bold text-green-600 mb-2">
+														${prediction.optimistic_scenario?.toLocaleString()}
+													</div>
+													<div class="text-sm text-green-600 bg-green-100 px-3 py-1 rounded-full">10% chance of doing better</div>
+												</div>
+											{/if}
+										</div>
+										
+										<!-- Methodology & Reasoning -->
+										{#if prediction.methodology_explanation || prediction.why_these_numbers}
+											<div class="mt-6 bg-gray-50 rounded-xl p-6 border border-gray-200">
+												<h5 class="font-semibold text-gray-900 mb-4 flex items-center">
+													<span class="text-blue-500 mr-2">🔬</span>
+													Analysis Methodology
+												</h5>
+												<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+													{#if prediction.methodology_explanation}
+														<div>
+															<div class="text-sm font-medium text-gray-700 mb-2">How We Calculated These Numbers</div>
+															<div class="text-sm text-gray-600 leading-relaxed">{prediction.methodology_explanation}</div>
+														</div>
+													{/if}
+													{#if prediction.why_these_numbers}
+														<div>
+															<div class="text-sm font-medium text-gray-700 mb-2">Why This Range Makes Sense</div>
+															<div class="text-sm text-gray-600 leading-relaxed">{prediction.why_these_numbers}</div>
+														</div>
+													{/if}
+												</div>
+											</div>
+										{/if}
+									</div>
+								{/if}
+							{/if}
+
+							<!-- Geographic Revenue Split - Coming Soon -->
+							<div class="bg-purple-50 rounded-xl p-6 border border-purple-200">
+								<h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+									<span class="text-purple-500 mr-2">🌍</span>
+									Geographic Revenue Distribution
+									<span class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">Coming Soon</span>
+								</h4>
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+										<div class="flex items-center justify-between mb-2">
+											<span class="font-medium text-blue-900">🇺🇸 Domestic Analysis</span>
+											<span class="text-sm text-blue-600">US/Canada Markets</span>
+										</div>
+										<div class="text-sm text-blue-800">Detailed domestic market breakdown and performance projections</div>
+									</div>
+									<div class="bg-green-50 rounded-lg p-4 border border-green-200">
+										<div class="flex items-center justify-between mb-2">
+											<span class="font-medium text-green-900">🌏 International Analysis</span>
+											<span class="text-sm text-green-600">Global Markets</span>
+										</div>
+										<div class="text-sm text-green-800">International market opportunities and revenue potential</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Platform Revenue Analysis -->
+							{#if analysis.result.deepseek_platform_analysis}
+								{@const platform = typeof analysis.result.deepseek_platform_analysis === 'string' 
+									? JSON.parse(analysis.result.deepseek_platform_analysis) 
+									: analysis.result.deepseek_platform_analysis}
+								{#if platform}
+									<div>
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-indigo-500 mr-2">📱</span>
+											Distribution & Platform Analysis
+										</h4>
+										
+										{#if platform.streaming_deal_scenarios}
+											<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+												{#if platform.streaming_deal_scenarios.netflix_acquisition_estimate}
+													<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+														<div class="text-red-800 font-semibold mb-2 flex items-center justify-center">
+															<span class="mr-2">🎬</span>
+															Netflix Acquisition
+														</div>
+														<div class="text-xl font-bold text-red-600">${platform.streaming_deal_scenarios.netflix_acquisition_estimate?.toLocaleString()}</div>
+													</div>
+												{/if}
+												{#if platform.streaming_deal_scenarios.day_and_date_streaming}
+													<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+														<div class="text-yellow-800 font-semibold mb-2 flex items-center justify-center">
+															<span class="mr-2">⚡</span>
+															Day-and-Date
+														</div>
+														<div class="text-xl font-bold text-yellow-600">${platform.streaming_deal_scenarios.day_and_date_streaming?.toLocaleString()}</div>
+													</div>
+												{/if}
+												{#if platform.streaming_deal_scenarios.streaming_exclusive_value}
+													<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+														<div class="text-blue-800 font-semibold mb-2 flex items-center justify-center">
+															<span class="mr-2">💻</span>
+															Streaming Exclusive
+														</div>
+														<div class="text-xl font-bold text-blue-600">${platform.streaming_deal_scenarios.streaming_exclusive_value?.toLocaleString()}</div>
+													</div>
+												{/if}
+											</div>
+										{/if}
+										
+										{#if platform.platform_strategy_explanation}
+											<div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+												<div class="text-sm font-medium text-indigo-900 mb-2">💡 Platform Strategy Recommendation</div>
+												<div class="text-sm text-indigo-800">{platform.platform_strategy_explanation}</div>
+											</div>
+										{/if}
+									</div>
+								{/if}
+							{/if}
+
+							<!-- ROI Metrics -->
+							{#if analysis.result.deepseek_roi_analysis}
+								{@const roi = typeof analysis.result.deepseek_roi_analysis === 'string' 
+									? JSON.parse(analysis.result.deepseek_roi_analysis) 
+									: analysis.result.deepseek_roi_analysis}
+								
+								{#if roi}
+									<div>
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-emerald-500 mr-2">💎</span>
+											Return on Investment Analysis
+										</h4>
+										<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+											{#if roi.expected_roi_percentage}
+												<div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+													<div class="text-blue-800 font-semibold mb-2 text-sm">Expected ROI</div>
+													<div class="text-2xl font-bold text-blue-600">{roi.expected_roi_percentage}%</div>
+												</div>
+											{/if}
+											{#if roi.break_even_point}
+												<div class="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center">
+													<div class="text-purple-800 font-semibold mb-2 text-sm">Break Even</div>
+													<div class="text-xl font-bold text-purple-600">${roi.break_even_point?.toLocaleString()}</div>
+												</div>
+											{/if}
+											{#if roi.payback_period_months}
+												<div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 text-center">
+													<div class="text-indigo-800 font-semibold mb-2 text-sm">Payback Period</div>
+													<div class="text-xl font-bold text-indigo-600">{roi.payback_period_months}mo</div>
+												</div>
+											{/if}
+											{#if roi.internal_rate_return}
+												<div class="bg-teal-50 border border-teal-200 rounded-xl p-4 text-center">
+													<div class="text-teal-800 font-semibold mb-2 text-sm">IRR</div>
+													<div class="text-xl font-bold text-teal-600">{roi.internal_rate_return}%</div>
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/if}
+							{/if}
+						</div>
+					</div>
+
+					<!-- 3. BUDGET & INVESTMENT SECTION -->
+					{#if analysis.result.deepseek_budget_optimization}
+						{@const budget = typeof analysis.result.deepseek_budget_optimization === 'string' 
+							? JSON.parse(analysis.result.deepseek_budget_optimization) 
+							: analysis.result.deepseek_budget_optimization}
+						
+						{#if budget}
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-emerald-50 to-teal-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-xl font-bold text-gray-900 flex items-center">
+										<span class="text-emerald-600 mr-3">💰</span>
+										Budget & Investment Optimization
+									</h3>
+								</div>
+								<div class="p-6 space-y-6">
+									<!-- Budget Range Recommendations -->
+									{#if budget.recommended_budget_range}
+										<div>
+											<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+												<span class="text-green-500 mr-2">🎯</span>
+												Recommended Budget Range
+											</h4>
+											<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+												{#if budget.recommended_budget_range.minimum}
+													<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
+														<div class="text-yellow-800 font-semibold mb-2">💡 Minimum Viable</div>
+														<div class="text-2xl font-bold text-yellow-600">${budget.recommended_budget_range.minimum?.toLocaleString()}</div>
+														<div class="text-sm text-yellow-600 mt-2">Lean production</div>
+													</div>
+												{/if}
+												{#if budget.recommended_budget_range.optimal}
+													<div class="bg-green-50 border border-green-300 rounded-xl p-6 text-center ring-2 ring-green-300">
+														<div class="text-green-800 font-semibold mb-2">⭐ Optimal</div>
+														<div class="text-2xl font-bold text-green-600">${budget.recommended_budget_range.optimal?.toLocaleString()}</div>
+														<div class="text-sm text-green-600 mt-2">Best ROI potential</div>
+													</div>
+												{/if}
+												{#if budget.recommended_budget_range.maximum}
+													<div class="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+														<div class="text-blue-800 font-semibold mb-2">🚀 Maximum</div>
+														<div class="text-2xl font-bold text-blue-600">${budget.recommended_budget_range.maximum?.toLocaleString()}</div>
+														<div class="text-sm text-blue-600 mt-2">Premium production</div>
+													</div>
+												{/if}
+											</div>
+										</div>
+									{/if}
+
+									<!-- Cost Allocation Breakdown -->
+									{#if budget.cost_allocation_recommendations}
+										<div>
+											<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+												<span class="text-purple-500 mr-2">📊</span>
+												Budget Allocation Strategy
+											</h4>
+											<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+												{#if budget.cost_allocation_recommendations.above_line}
+													<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+														<div class="text-red-800 font-semibold mb-1 text-sm">Above-the-Line</div>
+														<div class="text-lg font-bold text-red-600">${budget.cost_allocation_recommendations.above_line?.toLocaleString()}</div>
+														<div class="text-xs text-red-600 mt-1">Cast, Director, Producer</div>
+													</div>
+												{/if}
+												{#if budget.cost_allocation_recommendations.below_line}
+													<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+														<div class="text-blue-800 font-semibold mb-1 text-sm">Below-the-Line</div>
+														<div class="text-lg font-bold text-blue-600">${budget.cost_allocation_recommendations.below_line?.toLocaleString()}</div>
+														<div class="text-xs text-blue-600 mt-1">Crew, Equipment, Locations</div>
+													</div>
+												{/if}
+												{#if budget.cost_allocation_recommendations.post_production}
+													<div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+														<div class="text-green-800 font-semibold mb-1 text-sm">Post-Production</div>
+														<div class="text-lg font-bold text-green-600">${budget.cost_allocation_recommendations.post_production?.toLocaleString()}</div>
+														<div class="text-xs text-green-600 mt-1">Editing, VFX, Sound</div>
+													</div>
+												{/if}
+												{#if budget.cost_allocation_recommendations.marketing}
+													<div class="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+														<div class="text-purple-800 font-semibold mb-1 text-sm">Marketing</div>
+														<div class="text-lg font-bold text-purple-600">${budget.cost_allocation_recommendations.marketing?.toLocaleString()}</div>
+														<div class="text-xs text-purple-600 mt-1">P&A, Distribution</div>
+													</div>
+												{/if}
+											</div>
+										</div>
+									{/if}
+
+									<!-- Efficiency Opportunities -->
+									{#if budget.efficiency_opportunities && budget.efficiency_opportunities.length > 0}
+										<div class="bg-amber-50 rounded-xl p-6 border border-amber-200">
+											<h5 class="font-semibold text-amber-900 mb-4 flex items-center">
+												<span class="text-amber-600 mr-2">💡</span>
+												Cost Optimization Opportunities
+											</h5>
+											<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+												{#each budget.efficiency_opportunities as opportunity}
+													<div class="text-sm text-amber-800 bg-amber-100 px-4 py-3 rounded-lg border border-amber-200 flex items-start">
+														<span class="text-amber-600 mr-2 mt-0.5">✨</span>
+														{opportunity}
+													</div>
+												{/each}
+											</div>
+										</div>
+									{/if}
+								</div>
+							</div>
+						{/if}
+					{/if}
+
+					<!-- 4. PRODUCTION INTELLIGENCE SECTION -->
+					{#if analysis.result.deepseek_production_optimization}
+						<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+							<div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+								<h3 class="text-xl font-bold text-gray-900 flex items-center">
+									<span class="text-blue-600 mr-3">🏭</span>
+									Production Intelligence
+								</h3>
+							</div>
+							<div class="p-6 space-y-6">
+								<!-- Production Optimization -->
+								{#if analysis.result.deepseek_production_optimization}
+									{@const production = typeof analysis.result.deepseek_production_optimization === 'string' 
+										? JSON.parse(analysis.result.deepseek_production_optimization) 
+										: analysis.result.deepseek_production_optimization}
+									
+									{#if production}
+										<div>
+											<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+												<span class="text-indigo-500 mr-2">⚙️</span>
+												Production Optimization
+											</h4>
+											<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+												{#if production.optimal_shooting_schedule}
+													<div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+														<div class="text-sm font-medium text-indigo-900 mb-2">📅 Shooting Schedule</div>
+														<div class="text-sm text-indigo-800">{production.optimal_shooting_schedule}</div>
+													</div>
+												{/if}
+												{#if production.crew_size_optimization}
+													<div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+														<div class="text-sm font-medium text-blue-900 mb-2">👥 Crew Optimization</div>
+														<div class="text-sm text-blue-800">{production.crew_size_optimization}</div>
+													</div>
+												{/if}
+												{#if production.location_cost_efficiency}
+													<div class="bg-green-50 rounded-lg p-4 border border-green-200">
+														<div class="text-sm font-medium text-green-900 mb-2">📍 Location Strategy</div>
+														<div class="text-sm text-green-800">{production.location_cost_efficiency}</div>
+													</div>
+												{/if}
+												{#if production.equipment_rental_strategy}
+													<div class="bg-purple-50 rounded-lg p-4 border border-purple-200">
+														<div class="text-sm font-medium text-purple-900 mb-2">🎥 Equipment Strategy</div>
+														<div class="text-sm text-purple-800">{production.equipment_rental_strategy}</div>
+													</div>
+												{/if}
+											</div>
+										</div>
+									{/if}
+								{/if}
+
+								<!-- Cast ROI Analysis - Coming Soon -->
+								<div class="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
+									<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+										<span class="text-yellow-500 mr-2">⭐</span>
+										Cast ROI Strategy
+										<span class="ml-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">Coming Soon</span>
+									</h4>
+									<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+										<div class="bg-yellow-100 rounded-lg p-4 border border-yellow-300">
+											<div class="text-sm font-medium text-yellow-900 mb-2">🌟 Star Power Analysis</div>
+											<div class="text-sm text-yellow-800">Celebrity casting impact on box office performance</div>
+										</div>
+										<div class="bg-orange-100 rounded-lg p-4 border border-orange-300">
+											<div class="text-sm font-medium text-orange-900 mb-2">💰 Cost-Benefit Modeling</div>
+											<div class="text-sm text-orange-800">Cast investment vs projected revenue return</div>
+										</div>
+									</div>
+								</div>
+
+								<!-- Location Cost Analysis - Coming Soon -->
+								<div class="bg-green-50 rounded-xl p-6 border border-green-200">
+									<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+										<span class="text-green-500 mr-2">📍</span>
+										Location Cost Analysis
+										<span class="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">Coming Soon</span>
+									</h4>
+									<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+										<div class="bg-green-100 rounded-lg p-4 border border-green-300">
+											<div class="text-sm font-medium text-green-900 mb-2">💡 Cost-Effective Locations</div>
+											<div class="text-sm text-green-800">Optimized filming locations for budget efficiency</div>
+										</div>
+										<div class="bg-blue-100 rounded-lg p-4 border border-blue-300">
+											<div class="text-sm font-medium text-blue-900 mb-2">🎯 Tax Incentive Opportunities</div>
+											<div class="text-sm text-blue-800">Available tax credits and production incentives</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					{/if}
+
+					<!-- 5. MARKET & STRATEGY SECTION -->
+					<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+						<div class="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-200">
+							<h3 class="text-xl font-bold text-gray-900 flex items-center">
+								<span class="text-purple-600 mr-3">📈</span>
+								Market Intelligence & Strategy
+								<span class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">Enhanced Analysis</span>
+							</h3>
+						</div>
+						<div class="p-6 space-y-6">
+							<!-- Market Analysis - Coming Soon -->
+							<div class="bg-purple-50 rounded-xl p-6 border border-purple-200">
+								<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+									<span class="text-purple-500 mr-2">📊</span>
+									Market Conditions & Volatility
+									<span class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">Coming Soon</span>
+								</h4>
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div class="bg-purple-100 rounded-lg p-4 border border-purple-300">
+										<div class="text-sm font-medium text-purple-900 mb-2">🎬 Genre Stability Analysis</div>
+										<div class="text-sm text-purple-800">Market performance trends for your specific genre</div>
+									</div>
+									<div class="bg-orange-100 rounded-lg p-4 border border-orange-300">
+										<div class="text-sm font-medium text-orange-900 mb-2">💹 Economic Sensitivity</div>
+										<div class="text-sm text-orange-800">Impact of economic conditions on box office performance</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Competitive Analysis - Coming Soon -->
+							<div class="bg-red-50 rounded-xl p-6 border border-red-200">
+								<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+									<span class="text-red-500 mr-2">⚔️</span>
+									Competitive Landscape
+									<span class="ml-2 text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">Coming Soon</span>
+								</h4>
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div class="bg-red-100 rounded-lg p-4 border border-red-300">
+										<div class="text-sm font-medium text-red-900 mb-2">🎯 Similar Projects Analysis</div>
+										<div class="text-sm text-red-800">Competing films in development and release schedule</div>
+									</div>
+									<div class="bg-yellow-100 rounded-lg p-4 border border-yellow-300">
+										<div class="text-sm font-medium text-yellow-900 mb-2">⚠️ Market Saturation Assessment</div>
+										<div class="text-sm text-yellow-800">Genre saturation and audience fatigue analysis</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Release Strategy - Coming Soon -->
+							<div class="bg-blue-50 rounded-xl p-6 border border-blue-200">
+								<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+									<span class="text-blue-500 mr-2">📅</span>
+									Release Timing & Strategy
+									<span class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Coming Soon</span>
+								</h4>
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<div class="bg-blue-100 rounded-lg p-4 border border-blue-300">
+										<div class="text-sm font-medium text-blue-900 mb-2">🎯 Optimal Release Windows</div>
+										<div class="text-sm text-blue-800">Best timing for theatrical and streaming releases</div>
+									</div>
+									<div class="bg-green-100 rounded-lg p-4 border border-green-300">
+										<div class="text-sm font-medium text-green-900 mb-2">📈 Seasonal Performance Factors</div>
+										<div class="text-sm text-green-800">Holiday and seasonal impact on box office performance</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- 6. RISK ASSESSMENT SECTION (Enhanced) -->
+					{#if analysis.result.deepseek_risk_assessment}
+						{@const risk = typeof analysis.result.deepseek_risk_assessment === 'string' 
+							? JSON.parse(analysis.result.deepseek_risk_assessment) 
+							: analysis.result.deepseek_risk_assessment}
+						
+						{#if risk}
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-red-50 to-orange-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-xl font-bold text-gray-900 flex items-center">
+										<span class="text-red-600 mr-3">⚠️</span>
+										Risk Assessment & Mitigation
+									</h3>
+								</div>
+								<div class="p-6 space-y-6">
+									<!-- Risk Score Overview -->
+									{#if risk.overall_risk_score}
+										<div class="bg-gray-50 rounded-xl p-6 border border-gray-200">
+											<div class="flex items-center justify-between">
+												<div>
+													<h4 class="text-lg font-semibold text-gray-900 mb-2">Overall Risk Assessment</h4>
+													<p class="text-gray-600">Comprehensive risk evaluation across all factors</p>
+												</div>
+												<div class="text-center">
+													<div class="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold
+														{risk.overall_risk_score <= 3 ? 'bg-green-500' : risk.overall_risk_score <= 6 ? 'bg-yellow-500' : 'bg-red-500'}">
+														{risk.overall_risk_score}
+													</div>
+													<div class="text-sm text-gray-500 mt-2">Risk Score</div>
+												</div>
+											</div>
+											{#if risk.risk_score_explanation}
+												<div class="mt-4 p-4 bg-white rounded-lg border border-gray-200">
+													<div class="text-sm font-medium text-gray-700 mb-2">Risk Score Explanation</div>
+													<div class="text-sm text-gray-600">{risk.risk_score_explanation}</div>
+												</div>
+											{/if}
+										</div>
+									{/if}
+
+									<!-- Risk Factors & Mitigation -->
+									<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+										{#if (risk.key_risk_factors || risk.major_risk_factors)}
+											<div class="bg-red-50 border border-red-200 rounded-xl p-6">
+												<h5 class="font-semibold text-red-900 mb-4 flex items-center">
+													<span class="text-red-600 mr-2">⚠️</span>
+													Key Risk Factors
+												</h5>
+												<div class="space-y-3">
+													{#each (risk.key_risk_factors || risk.major_risk_factors) as factor}
+														<div class="bg-red-100 border border-red-200 rounded-lg p-3 flex items-start">
+															<span class="text-red-600 mr-2 mt-0.5">•</span>
+															<span class="text-red-800 text-sm">{factor}</span>
+														</div>
+													{/each}
+												</div>
+											</div>
+										{/if}
+										{#if (risk.mitigation_strategies || risk.risk_mitigation_strategies)}
+											<div class="bg-green-50 border border-green-200 rounded-xl p-6">
+												<h5 class="font-semibold text-green-900 mb-4 flex items-center">
+													<span class="text-green-600 mr-2">🛡️</span>
+													Mitigation Strategies
+												</h5>
+												<div class="space-y-3">
+													{#each (risk.mitigation_strategies || risk.risk_mitigation_strategies) as strategy}
+														<div class="bg-green-100 border border-green-200 rounded-lg p-3 flex items-start">
+															<span class="text-green-600 mr-2 mt-0.5">✓</span>
+															<span class="text-green-800 text-sm">{strategy}</span>
+														</div>
+													{/each}
+												</div>
+											</div>
+										{/if}
 									</div>
 								</div>
 							</div>
 						{/if}
-						
-						<!-- Box Office Prediction -->
-						{#if analysis.result.deepseek_box_office_prediction}
-							{@const prediction = typeof analysis.result.deepseek_box_office_prediction === 'string' 
-								? JSON.parse(analysis.result.deepseek_box_office_prediction) 
-								: analysis.result.deepseek_box_office_prediction}
-							
-							{#if prediction}
-								<div class="mb-6">
-									<h4 class="text-lg font-semibold text-gray-900 mb-4">Box Office Prediction Model</h4>
-									<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-										{#if prediction.conservative_scenario}
-											<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-												<div class="text-red-800 font-semibold mb-2">Conservative (P10)</div>
-												<div class="text-2xl font-bold text-red-600">
-													${prediction.conservative_scenario?.toLocaleString()}
-												</div>
-												<div class="text-sm text-red-600 mt-1">Worst case scenario</div>
-											</div>
-										{/if}
-										{#if prediction.expected_scenario}
-											<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-												<div class="text-yellow-800 font-semibold mb-2">Expected (P50)</div>
-												<div class="text-2xl font-bold text-yellow-600">
-													${prediction.expected_scenario?.toLocaleString()}
-												</div>
-												<div class="text-sm text-yellow-600 mt-1">Most likely outcome</div>
-											</div>
-										{/if}
-										{#if prediction.optimistic_scenario}
-											<div class="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-												<div class="text-green-800 font-semibold mb-2">Optimistic (P90)</div>
-												<div class="text-2xl font-bold text-green-600">
-													${prediction.optimistic_scenario?.toLocaleString()}
-												</div>
-												<div class="text-sm text-green-600 mt-1">Best case scenario</div>
-											</div>
-										{/if}
-									</div>
-									{#if prediction.methodology_explanation || prediction.methodology || prediction.why_these_numbers}
-										<div class="mt-4 p-3 bg-gray-50 rounded-lg space-y-3">
-											{#if prediction.methodology_explanation}
-												<div>
-													<div class="text-sm font-medium text-gray-700 mb-1">Methodology</div>
-													<div class="text-sm text-gray-600">{prediction.methodology_explanation}</div>
-												</div>
-											{:else if prediction.methodology}
-												<div>
-													<div class="text-sm font-medium text-gray-700 mb-1">Methodology</div>
-													<div class="text-sm text-gray-600">{prediction.methodology}</div>
-												</div>
-											{/if}
-											{#if prediction.why_these_numbers}
-												<div>
-													<div class="text-sm font-medium text-gray-700 mb-1">Why These Numbers</div>
-													<div class="text-sm text-gray-600">{prediction.why_these_numbers}</div>
-												</div>
-											{/if}
-										</div>
-									{/if}
-								</div>
-							{/if}
-						{/if}
-						
-						<!-- ROI Analysis -->
-						{#if analysis.result.deepseek_roi_analysis}
-							{@const roi = typeof analysis.result.deepseek_roi_analysis === 'string' 
-								? JSON.parse(analysis.result.deepseek_roi_analysis) 
-								: analysis.result.deepseek_roi_analysis}
-							
-							{#if roi}
-								<div class="mb-6">
-									<h4 class="text-lg font-semibold text-gray-900 mb-4">Return on Investment Analysis</h4>
-									<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-										{#if roi.expected_roi_percentage}
-											<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-												<div class="text-blue-800 font-semibold mb-2">Expected ROI</div>
-												<div class="text-xl font-bold text-blue-600">{roi.expected_roi_percentage}%</div>
-											</div>
-										{/if}
-										{#if roi.break_even_point}
-											<div class="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
-												<div class="text-purple-800 font-semibold mb-2">Break Even</div>
-												<div class="text-xl font-bold text-purple-600">${roi.break_even_point?.toLocaleString()}</div>
-											</div>
-										{/if}
-										{#if roi.payback_period_months}
-											<div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-center">
-												<div class="text-indigo-800 font-semibold mb-2">Payback Period</div>
-												<div class="text-xl font-bold text-indigo-600">{roi.payback_period_months} months</div>
-											</div>
-										{/if}
-										{#if roi.internal_rate_return}
-											<div class="bg-teal-50 border border-teal-200 rounded-lg p-4 text-center">
-												<div class="text-teal-800 font-semibold mb-2">IRR</div>
-												<div class="text-xl font-bold text-teal-600">{roi.internal_rate_return}%</div>
-											</div>
-										{/if}
-									</div>
-									{#if roi.break_even_explanation || roi.roi_explanation || roi.payback_explanation || roi.npv_explanation || roi.irr_explanation}
-										<div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-											{#if roi.break_even_explanation}
-												<div>
-													<div class="text-sm font-medium text-gray-700">Break-even Explained</div>
-													<div class="text-sm text-gray-600">{roi.break_even_explanation}</div>
-												</div>
-											{/if}
-											{#if roi.roi_explanation}
-												<div>
-													<div class="text-sm font-medium text-gray-700">ROI Explained</div>
-													<div class="text-sm text-gray-600">{roi.roi_explanation}</div>
-												</div>
-											{/if}
-											{#if roi.payback_explanation}
-												<div>
-													<div class="text-sm font-medium text-gray-700">Payback Period Explained</div>
-													<div class="text-sm text-gray-600">{roi.payback_explanation}</div>
-												</div>
-											{/if}
-											{#if roi.npv_explanation}
-												<div>
-													<div class="text-sm font-medium text-gray-700">NPV Explained</div>
-													<div class="text-sm text-gray-600">{roi.npv_explanation}</div>
-												</div>
-											{/if}
-											{#if roi.irr_explanation}
-												<div>
-													<div class="text-sm font-medium text-gray-700">IRR Explained</div>
-													<div class="text-sm text-gray-600">{roi.irr_explanation}</div>
-												</div>
-											{/if}
-										</div>
-									{/if}
-								</div>
-							{/if}
-						{/if}
+					{/if}
 
-						<!-- Platform / Streaming Analysis -->
-						{#if analysis.result.deepseek_platform_analysis}
-							{@const platform = typeof analysis.result.deepseek_platform_analysis === 'string' 
-								? JSON.parse(analysis.result.deepseek_platform_analysis) 
-								: analysis.result.deepseek_platform_analysis}
-							{#if platform}
-								<div class="mb-6">
-									<h4 class="text-lg font-semibold text-gray-900 mb-4">Distribution & Streaming Analysis</h4>
-									{#if platform.platform_strategy_explanation}
-										<div class="p-4 bg-gray-50 rounded-lg border border-gray-200 mb-4">
-											<div class="text-sm font-medium text-gray-700 mb-1">Platform Strategy</div>
-											<div class="text-sm text-gray-600">{platform.platform_strategy_explanation}</div>
-										</div>
-									{/if}
-									{#if platform.streaming_deal_scenarios}
-										<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-											{#if platform.streaming_deal_scenarios.netflix_acquisition_estimate}
-												<div class="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-													<div class="text-red-800 font-semibold mb-2">Netflix Acquisition</div>
-													<div class="text-xl font-bold text-red-600">${platform.streaming_deal_scenarios.netflix_acquisition_estimate?.toLocaleString()}</div>
-												</div>
-											{/if}
-											{#if platform.streaming_deal_scenarios.day_and_date_streaming}
-												<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-													<div class="text-yellow-800 font-semibold mb-2">Day-and-Date</div>
-													<div class="text-xl font-bold text-yellow-600">${platform.streaming_deal_scenarios.day_and_date_streaming?.toLocaleString()}</div>
-												</div>
-											{/if}
-											{#if platform.streaming_deal_scenarios.streaming_exclusive_value}
-												<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
-													<div class="text-blue-800 font-semibold mb-2">Streaming Exclusive</div>
-													<div class="text-xl font-bold text-blue-600">${platform.streaming_deal_scenarios.streaming_exclusive_value?.toLocaleString()}</div>
-												</div>
-											{/if}
-										</div>
-										{#if platform.streaming_deal_scenarios.streaming_explanation}
-											<div class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-												<div class="text-sm font-medium text-gray-700 mb-1">Streaming Explained</div>
-												<div class="text-sm text-gray-600">{platform.streaming_deal_scenarios.streaming_explanation}</div>
-											</div>
-										{/if}
-									{/if}
-									{#if platform.modern_distribution_reality}
-										<div class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-											<div class="text-sm font-medium text-gray-700 mb-1">Modern Distribution Reality</div>
-											<div class="text-sm text-gray-600">{platform.modern_distribution_reality}</div>
-										</div>
-									{/if}
-								</div>
-							{/if}
-						{/if}
-						
-						<!-- Risk Assessment -->
-						{#if analysis.result.deepseek_risk_assessment}
-							{@const risk = typeof analysis.result.deepseek_risk_assessment === 'string' 
-								? JSON.parse(analysis.result.deepseek_risk_assessment) 
-								: analysis.result.deepseek_risk_assessment}
-							
-							{#if risk}
-								<div class="mb-6">
-									<h4 class="text-lg font-semibold text-gray-900 mb-4">Risk Assessment</h4>
-									<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-										{#if (risk.key_risk_factors || risk.major_risk_factors)}
-											<div class="bg-red-50 border border-red-200 rounded-lg p-4">
-												<h5 class="font-semibold text-red-900 mb-3 flex items-center">
-													<span class="text-red-600 mr-2">⚠️</span>
-													Key Risk Factors
-												</h5>
-												<ul class="space-y-2">
-													{#each (risk.key_risk_factors || risk.major_risk_factors) as factor}
-														<li class="text-red-800 text-sm flex items-start">
-															<span class="text-red-600 mr-2">•</span>
-															{factor}
-														</li>
-													{/each}
-												</ul>
-											</div>
-										{/if}
-										{#if (risk.mitigation_strategies || risk.risk_mitigation_strategies)}
-											<div class="bg-green-50 border border-green-200 rounded-lg p-4">
-												<h5 class="font-semibold text-green-900 mb-3 flex items-center">
-													<span class="text-green-600 mr-2">🛡️</span>
-													Mitigation Strategies
-												</h5>
-												<ul class="space-y-2">
-													{#each (risk.mitigation_strategies || risk.risk_mitigation_strategies) as strategy}
-														<li class="text-green-800 text-sm flex items-start">
-															<span class="text-green-600 mr-2">•</span>
-															{strategy}
-														</li>
-													{/each}
-												</ul>
-											</div>
-										{/if}
-									</div>
-									{#if risk.overall_risk_score}
-										<div class="mt-4 p-3 bg-gray-50 rounded-lg">
-											<div class="flex items-center justify-between">
-												<span class="text-sm font-medium text-gray-700">Overall Risk Score</span>
-												<span class="text-lg font-bold {risk.overall_risk_score <= 3 ? 'text-green-600' : risk.overall_risk_score <= 6 ? 'text-yellow-600' : 'text-red-600'}">
-													{risk.overall_risk_score}/10
-												</span>
-											</div>
-											{#if risk.risk_score_explanation}
-												<div class="mt-2 text-sm text-gray-600">{risk.risk_score_explanation}</div>
-											{/if}
-										</div>
-									{/if}
-								</div>
-							{/if}
-						{/if}
-					</div>
 				{:else}
 					<!-- No Financial Analysis Available -->
-					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
-						<div class="text-gray-400 text-6xl mb-4">💰</div>
-						<h3 class="text-xl font-semibold text-gray-900 mb-2">Financial Analysis Unavailable</h3>
-						<p class="text-gray-600 mb-4">DeepSeek financial analysis was not completed for this screenplay.</p>
-						<p class="text-sm text-gray-500">This may be due to analysis failure or the feature not being available when this analysis was run.</p>
+					<div class="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
+						<div class="text-gray-400 text-8xl mb-6">💰</div>
+						<h3 class="text-2xl font-semibold text-gray-900 mb-4">Financial Analysis Unavailable</h3>
+						<p class="text-gray-600 mb-4 max-w-lg mx-auto">DeepSeek financial analysis was not completed for this screenplay. This may be due to analysis failure or the feature not being available when this analysis was run.</p>
+						<div class="bg-gray-50 rounded-lg p-4 max-w-md mx-auto">
+							<p class="text-sm text-gray-500">Try re-analyzing the screenplay to generate comprehensive financial intelligence.</p>
+						</div>
 					</div>
 				{/if}
 			</div>
