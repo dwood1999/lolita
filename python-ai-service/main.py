@@ -32,6 +32,8 @@ from perplexity_analyzer import PerplexityAnalyzer
 from pdf_processor import PDFProcessor
 from cost_tracker import CostTracker
 from budget_utils import estimate_budget_from_screenplay, categorize_budget
+from incentive_models import IncentiveDatabase, FilmIncentive, find_best_incentives_for_budget, get_incentives_by_analysis
+from pydantic import BaseModel
 
 load_dotenv(dotenv_path='../.env')
 POSTER_GENERATION_ENABLED = os.getenv("POSTER_GENERATION_ENABLED", "true").lower() == "true"
@@ -43,7 +45,7 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="Lolita Screenplay Analysis Service",
-    description="AI-powered screenplay analysis with Claude Opus 4.1",
+    description="Advanced screenplay analysis platform",
     version="1.0.0"
 )
 
@@ -75,7 +77,8 @@ try:
     perplexity_analyzer = PerplexityAnalyzer()
     pdf_processor = PDFProcessor()
     cost_tracker = CostTracker()
-    logger.info("✅ All services initialized successfully")
+    incentive_db = IncentiveDatabase()
+    logger.info("✅ All analysis engines initialized successfully")
     
     # Progress tracking store
     progress_store: Dict[str, Dict[str, Any]] = {}
@@ -636,7 +639,7 @@ async def process_text_analysis(
             budget_estimate=budget_estimate
         )
         if result:
-            update_progress(analysis_id, "claude_complete", 50, f"Claude analysis complete! Score: {result.overall_score}/10", {
+            update_progress(analysis_id, "claude_complete", 50, f"Craft analysis complete! Score: {result.overall_score}/10", {
                 "score": result.overall_score,
                 "recommendation": result.recommendation,
                 "cost": f"${result.cost:.4f}"
@@ -724,10 +727,10 @@ async def process_text_analysis(
         
         # Handle Grok result
         if isinstance(grok_result, Exception):
-            logger.error(f"Grok analysis failed: {grok_result}")
+            logger.error(f"Reality check analysis failed: {grok_result}")
             grok_result = None
         elif grok_result:
-            update_progress(analysis_id, "grok_complete", 70, f"Grok analysis complete! Score: {grok_result.score}/10", {
+            update_progress(analysis_id, "grok_complete", 70, f"Reality check complete! Score: {grok_result.score}/10", {
                 "score": grok_result.score,
                 "recommendation": grok_result.recommendation,
                 "cost": f"${grok_result.cost:.4f}"
@@ -735,20 +738,20 @@ async def process_text_analysis(
         
         # Handle OpenAI result
         if isinstance(openai_result, Exception):
-            logger.error(f"OpenAI analysis failed: {openai_result}")
+            logger.error(f"Commercial analysis failed: {openai_result}")
             openai_result = None
         elif openai_result:
-            update_progress(analysis_id, "openai_complete", 75, f"OpenAI analysis complete! Score: {openai_result.score}/10", {
+            update_progress(analysis_id, "openai_complete", 75, f"Commercial analysis complete! Score: {openai_result.score}/10", {
                 "score": openai_result.score,
                 "recommendation": openai_result.recommendation,
                 "cost": f"${openai_result.cost:.4f}"
             })
         else:
-            update_progress(analysis_id, "openai_skipped", 75, "OpenAI analysis skipped (API unavailable)")
+            update_progress(analysis_id, "openai_skipped", 75, "Commercial analysis skipped (service unavailable)")
         
         # Handle GPT-5 result
         if isinstance(gpt5_result, Exception):
-            logger.error(f"GPT-5 analysis failed: {gpt5_result}")
+            logger.error(f"Excellence analysis failed: {gpt5_result}")
             gpt5_result = None
         elif gpt5_result:
             update_progress(analysis_id, "gpt5_complete", 80, f"GPT-5 Writing Excellence complete! Score: {gpt5_result.score}/10", {
@@ -758,14 +761,14 @@ async def process_text_analysis(
                 "cost": f"${gpt5_result.cost:.4f}"
             })
         else:
-            update_progress(analysis_id, "gpt5_skipped", 80, "GPT-5 analysis skipped (API unavailable)")
+            update_progress(analysis_id, "gpt5_skipped", 80, "Excellence analysis skipped (service unavailable)")
         
         # Handle DeepSeek result
         if isinstance(deepseek_result, Exception):
             logger.error(f"DeepSeek analysis failed: {deepseek_result}")
             deepseek_result = None
         elif deepseek_result:
-            update_progress(analysis_id, "deepseek_complete", 82, f"DeepSeek financial analysis complete! Score: {deepseek_result.overall_financial_score}/10", {
+            update_progress(analysis_id, "deepseek_complete", 82, f"Financial analysis complete! Score: {deepseek_result.overall_financial_score}/10", {
                 "financial_score": deepseek_result.overall_financial_score,
                 "recommendation": deepseek_result.recommendation,
                 "cost": f"${deepseek_result.cost:.4f}"
@@ -778,7 +781,7 @@ async def process_text_analysis(
             logger.error(f"Perplexity research failed: {perplexity_result}")
             perplexity_result = None
         elif perplexity_result:
-            update_progress(analysis_id, "perplexity_complete", 84, f"Perplexity market research complete! Score: {perplexity_result.market_opportunity_score}/10", {
+            update_progress(analysis_id, "perplexity_complete", 84, f"Market research complete! Score: {perplexity_result.market_opportunity_score}/10", {
                 "market_score": perplexity_result.market_opportunity_score,
                 "recommendation": perplexity_result.market_recommendation,
                 "cost": f"${perplexity_result.cost:.4f}"
@@ -1032,7 +1035,7 @@ async def process_pdf_analysis(
         claude_failed = False
         
         try:
-            update_progress(analysis_id, "claude_analysis", 30, "Starting Claude Opus 4.1 analysis...", {
+            update_progress(analysis_id, "claude_analysis", 30, "Starting craft analysis...", {
                 "model": "claude-opus-4-1-20250805",
                 "estimated_time": "60-90 seconds (with retries if overloaded)"
             })
@@ -1065,7 +1068,7 @@ async def process_pdf_analysis(
         
         # If Claude succeeded, show success message
         if result and not claude_failed:
-            update_progress(analysis_id, "claude_complete", 45, f"Claude analysis complete! Score: {result.overall_score}/10", {
+            update_progress(analysis_id, "claude_complete", 45, f"Craft analysis complete! Score: {result.overall_score}/10", {
                 "score": result.overall_score,
                 "recommendation": result.recommendation,
                 "cost": f"${result.cost:.4f}"
@@ -1077,7 +1080,7 @@ async def process_pdf_analysis(
                 genre = "Drama"  # Default genre when Claude can't detect it
         
         # Run all secondary analyses in parallel (much faster!)
-        update_progress(analysis_id, "parallel_analysis", 50, "Running parallel AI analysis & poster generation...", {
+        update_progress(analysis_id, "parallel_analysis", 50, "Running parallel analysis & poster generation...", {
             "models": "Grok 4, OpenAI ChatGPT-5, GPT-5 Writing Excellence, PiAPI",
             "estimated_time": "45-60 seconds"
         })
@@ -1109,13 +1112,14 @@ async def process_pdf_analysis(
             budget_estimate=budget_estimate
         ))
         
-        # DeepSeek financial analysis task
+        # DeepSeek financial analysis task (enhanced with incentive data)
         tasks.append(deepseek_analyzer.analyze_financial_potential(
             screenplay_text=pdf_result.extracted_text,
             title=title,
             genre=genre or (result.genre if result else "Drama"),
             budget_estimate=budget_estimate,
-            comparable_films=[]    # Could be derived from Claude analysis
+            comparable_films=[],    # Could be derived from Claude analysis
+            include_incentive_analysis=True  # Enable incentive integration
         ))
         
         # Perplexity market research task
@@ -1158,36 +1162,36 @@ async def process_pdf_analysis(
         
         # Handle Grok result
         if isinstance(grok_result, Exception):
-            logger.error(f"Grok analysis failed: {grok_result}")
+            logger.error(f"Reality check analysis failed: {grok_result}")
             grok_result = None
         elif grok_result:
-            update_progress(analysis_id, "grok_complete", 70, f"Grok analysis complete! Score: {grok_result.score}/10", {
+            update_progress(analysis_id, "grok_complete", 70, f"Reality check complete! Score: {grok_result.score}/10", {
                 "score": grok_result.score,
                 "recommendation": grok_result.recommendation,
                 "cost": f"${grok_result.cost:.4f}"
             })
         else:
-            update_progress(analysis_id, "grok_skipped", 70, "Grok analysis skipped (API unavailable)")
+            update_progress(analysis_id, "grok_skipped", 70, "Reality check skipped (service unavailable)")
         
         # Handle OpenAI result
         if isinstance(openai_result, Exception):
-            logger.error(f"OpenAI analysis failed: {openai_result}")
+            logger.error(f"Commercial analysis failed: {openai_result}")
             openai_result = None
         elif openai_result:
-            update_progress(analysis_id, "openai_complete", 75, f"OpenAI analysis complete! Score: {openai_result.score}/10", {
+            update_progress(analysis_id, "openai_complete", 75, f"Commercial analysis complete! Score: {openai_result.score}/10", {
                 "score": openai_result.score,
                 "recommendation": openai_result.recommendation,
                 "cost": f"${openai_result.cost:.4f}"
             })
         else:
-            update_progress(analysis_id, "openai_skipped", 75, "OpenAI analysis skipped (API unavailable)")
+            update_progress(analysis_id, "openai_skipped", 75, "Commercial analysis skipped (service unavailable)")
         
         # Handle GPT-5 result
         if isinstance(gpt5_result, Exception):
-            logger.error(f"GPT-5 analysis failed: {gpt5_result}")
+            logger.error(f"Excellence analysis failed: {gpt5_result}")
             gpt5_result = None
         elif gpt5_result:
-            update_progress(analysis_id, "gpt5_complete", 78, f"GPT-5 Writing Excellence complete! Score: {gpt5_result.score}/10", {
+            update_progress(analysis_id, "gpt5_complete", 78, f"Excellence analysis complete! Score: {gpt5_result.score}/10", {
                 "score": gpt5_result.score,
                 "recommendation": gpt5_result.recommendation,
                 "reasoning_depth": gpt5_result.reasoning_depth,
@@ -1332,6 +1336,352 @@ async def process_pdf_analysis(
             success=False,
             error_message=str(e)
         )
+
+# ==================== FILM INCENTIVE & GRANTS API ENDPOINTS ====================
+
+@app.get("/api/incentives")
+async def get_all_incentives(active_only: bool = True):
+    """Get all film incentives"""
+    try:
+        incentives = incentive_db.get_all_incentives(active_only=active_only)
+        
+        # Convert to dict format for JSON response
+        incentive_list = []
+        for incentive in incentives:
+            incentive_dict = {
+                'id': incentive.id,
+                'country': incentive.country,
+                'region': incentive.region,
+                'incentive_type': incentive.incentive_type,
+                'percentage': incentive.percentage,
+                'max_credit': incentive.max_credit,
+                'minimum_spend': incentive.minimum_spend,
+                'maximum_spend': incentive.maximum_spend,
+                'requirements': incentive.requirements,
+                'processing_time_days': incentive.processing_time_days,
+                'is_active': incentive.is_active
+            }
+            incentive_list.append(incentive_dict)
+        
+        logger.info(f"📋 Returned {len(incentive_list)} incentives (active_only={active_only})")
+        
+        return {
+            "success": True,
+            "incentives": incentive_list,
+            "count": len(incentive_list)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error retrieving incentives: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve incentives: {str(e)}")
+
+@app.get("/api/incentives/country/{country}")
+async def get_incentives_by_country(country: str):
+    """Get incentives for a specific country"""
+    try:
+        incentives = incentive_db.get_incentives_by_country(country)
+        
+        # Convert to dict format
+        incentive_list = []
+        for incentive in incentives:
+            incentive_dict = {
+                'id': incentive.id,
+                'country': incentive.country,
+                'region': incentive.region,
+                'incentive_type': incentive.incentive_type,
+                'percentage': incentive.percentage,
+                'max_credit': incentive.max_credit,
+                'minimum_spend': incentive.minimum_spend,
+                'maximum_spend': incentive.maximum_spend,
+                'requirements': incentive.requirements,
+                'processing_time_days': incentive.processing_time_days
+            }
+            incentive_list.append(incentive_dict)
+        
+        logger.info(f"🌍 Returned {len(incentive_list)} incentives for {country}")
+        
+        return {
+            "success": True,
+            "country": country,
+            "incentives": incentive_list,
+            "count": len(incentive_list)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error retrieving incentives for {country}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve incentives for {country}: {str(e)}")
+
+@app.get("/api/incentives/calculator")
+async def incentive_calculator(budget: float, min_percentage: float = 15.0):
+    """Calculate potential savings for a given budget"""
+    try:
+        if budget <= 0:
+            raise HTTPException(status_code=400, detail="Budget must be greater than 0")
+        
+        if budget > 1_000_000_000:
+            raise HTTPException(status_code=400, detail="Budget cannot exceed $1 billion")
+        
+        # Find best incentives for this budget
+        savings_data = find_best_incentives_for_budget(float(budget), limit=10)
+        
+        # Calculate summary statistics
+        total_potential_savings = sum(float(item['final_savings']) for item in savings_data)
+        best_savings = savings_data[0] if savings_data else None
+        
+        logger.info(f"💰 Calculated incentives for ${budget:,.0f} budget - found {len(savings_data)} options")
+        
+        return {
+            "success": True,
+            "budget": budget,
+            "min_percentage": min_percentage,
+            "savings_options": savings_data,
+            "summary": {
+                "total_options": len(savings_data),
+                "best_savings": float(best_savings['final_savings']) if best_savings else 0,
+                "best_location": f"{best_savings['country']}, {best_savings['region']}" if best_savings and best_savings['region'] else best_savings['country'] if best_savings else None,
+                "total_potential_savings": total_potential_savings
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error calculating incentives: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to calculate incentives: {str(e)}")
+
+@app.get("/api/analysis/{analysis_id}/incentives")
+async def get_analysis_incentives(analysis_id: str):
+    """Get incentive analysis for a specific screenplay analysis"""
+    try:
+        # Get comprehensive incentive data for this analysis
+        incentive_data = get_incentives_by_analysis(analysis_id)
+        
+        logger.info(f"📊 Retrieved incentive data for analysis {analysis_id}")
+        
+        return {
+            "success": True,
+            "analysis_id": analysis_id,
+            "incentive_data": incentive_data
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error retrieving incentives for analysis {analysis_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve incentive data: {str(e)}")
+
+# ==================== END INCENTIVE ENDPOINTS ====================
+
+# ==================== SCREENPLAY ENDPOINTS ====================
+
+@app.get("/api/screenplays/analyses")
+async def get_all_analyses(user_id: str = "default"):
+    """Get all screenplay analyses - compatibility endpoint for frontend"""
+    try:
+        # This endpoint provides the same functionality as /user/{user_id}/analyses
+        # but with the URL structure the frontend expects
+        return await get_user_analyses(user_id)
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting analyses: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get analyses: {str(e)}")
+
+@app.get("/api/dashboard/stats")
+async def get_dashboard_stats():
+    """Get dashboard statistics"""
+    try:
+        # Return basic dashboard stats
+        total_analyses = len(await get_user_analyses("default"))
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_analyses": total_analyses,
+                "analyses_this_month": total_analyses,  # Simplified for now
+                "active_users": 1,
+                "total_incentives": 15
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting dashboard stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get dashboard stats")
+
+# ==================== GRANTS & AWARDS API ENDPOINTS ====================
+
+@app.get("/api/grants")
+async def get_all_grants(active_only: bool = True, grant_type: Optional[str] = None):
+    """Get all film grants and awards"""
+    try:
+        cursor = incentive_db.get_connection().cursor(dictionary=True)
+        
+        query = """
+            SELECT id, name, organization, country, region, grant_type, 
+                   amount_min, amount_max, eligibility_requirements, 
+                   application_deadline, application_frequency, target_demographics,
+                   genre_focus, website_url, success_rate_percentage, average_award_amount
+            FROM film_grants_awards
+        """
+        
+        conditions = []
+        params = []
+        
+        if active_only:
+            conditions.append("is_active = TRUE")
+        
+        if grant_type:
+            conditions.append("grant_type = %s")
+            params.append(grant_type)
+        
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+        
+        query += " ORDER BY average_award_amount DESC"
+        
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+        
+        # Process results
+        grants = []
+        for row in results:
+            # Parse JSON fields
+            if row['eligibility_requirements']:
+                try:
+                    row['eligibility_requirements'] = json.loads(row['eligibility_requirements']) if isinstance(row['eligibility_requirements'], str) else row['eligibility_requirements']
+                except (json.JSONDecodeError, TypeError):
+                    row['eligibility_requirements'] = {}
+            
+            if row['target_demographics']:
+                try:
+                    row['target_demographics'] = json.loads(row['target_demographics']) if isinstance(row['target_demographics'], str) else row['target_demographics']
+                except (json.JSONDecodeError, TypeError):
+                    row['target_demographics'] = []
+            
+            if row['genre_focus']:
+                try:
+                    row['genre_focus'] = json.loads(row['genre_focus']) if isinstance(row['genre_focus'], str) else row['genre_focus']
+                except (json.JSONDecodeError, TypeError):
+                    row['genre_focus'] = []
+            
+            grants.append(row)
+        
+        logger.info(f"📋 Returned {len(grants)} grants (active_only={active_only}, type={grant_type})")
+        
+        return {
+            "success": True,
+            "grants": grants,
+            "count": len(grants)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error retrieving grants: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve grants: {str(e)}")
+
+@app.get("/api/grants/eligibility")
+async def check_grant_eligibility(
+    filmmaker_demographics: Optional[str] = None,
+    project_genre: Optional[str] = None,
+    project_stage: Optional[str] = None,
+    budget_range: Optional[str] = None,
+    location: Optional[str] = None
+):
+    """Check grant eligibility based on filmmaker and project criteria"""
+    try:
+        cursor = incentive_db.get_connection().cursor(dictionary=True)
+        
+        query = """
+            SELECT id, name, organization, country, region, grant_type, 
+                   amount_min, amount_max, eligibility_requirements, 
+                   target_demographics, genre_focus, success_rate_percentage,
+                   average_award_amount, application_deadline, website_url
+            FROM film_grants_awards
+            WHERE is_active = TRUE
+        """
+        
+        cursor.execute(query)
+        results = cursor.fetchall()
+        
+        eligible_grants = []
+        
+        for grant in results:
+            eligibility_score = 0
+            max_score = 0
+            
+            # Parse JSON fields
+            target_demographics = []
+            genre_focus = []
+            requirements = {}
+            
+            try:
+                if grant['target_demographics']:
+                    target_demographics = json.loads(grant['target_demographics']) if isinstance(grant['target_demographics'], str) else grant['target_demographics']
+                if grant['genre_focus']:
+                    genre_focus = json.loads(grant['genre_focus']) if isinstance(grant['genre_focus'], str) else grant['genre_focus']
+                if grant['eligibility_requirements']:
+                    requirements = json.loads(grant['eligibility_requirements']) if isinstance(grant['eligibility_requirements'], str) else grant['eligibility_requirements']
+            except (json.JSONDecodeError, TypeError):
+                pass
+            
+            # Check demographics match
+            if filmmaker_demographics and target_demographics:
+                max_score += 3
+                if any(demo.lower() in filmmaker_demographics.lower() for demo in target_demographics):
+                    eligibility_score += 3
+            
+            # Check genre match
+            if project_genre and genre_focus:
+                max_score += 2
+                if any(genre.lower() in project_genre.lower() for genre in genre_focus):
+                    eligibility_score += 2
+            
+            # Check location match
+            if location:
+                max_score += 1
+                if location.lower() in grant['country'].lower() or (grant['region'] and location.lower() in grant['region'].lower()):
+                    eligibility_score += 1
+            
+            # Calculate eligibility percentage
+            eligibility_percentage = (eligibility_score / max_score * 100) if max_score > 0 else 50
+            
+            # Include grants with >30% match or no specific criteria
+            if eligibility_percentage >= 30 or max_score == 0:
+                grant['eligibility_score'] = eligibility_percentage
+                grant['match_reasons'] = []
+                
+                if filmmaker_demographics and target_demographics:
+                    matching_demos = [demo for demo in target_demographics if demo.lower() in filmmaker_demographics.lower()]
+                    if matching_demos:
+                        grant['match_reasons'].append(f"Demographics: {', '.join(matching_demos)}")
+                
+                if project_genre and genre_focus:
+                    matching_genres = [genre for genre in genre_focus if genre.lower() in project_genre.lower()]
+                    if matching_genres:
+                        grant['match_reasons'].append(f"Genre: {', '.join(matching_genres)}")
+                
+                eligible_grants.append(grant)
+        
+        # Sort by eligibility score and average award amount
+        eligible_grants.sort(key=lambda x: (x['eligibility_score'], x['average_award_amount'] or 0), reverse=True)
+        
+        return {
+            "success": True,
+            "eligible_grants": eligible_grants[:20],  # Top 20 matches
+            "total_matches": len(eligible_grants),
+            "criteria_used": {
+                "filmmaker_demographics": filmmaker_demographics,
+                "project_genre": project_genre,
+                "project_stage": project_stage,
+                "budget_range": budget_range,
+                "location": location
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error checking grant eligibility: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to check grant eligibility: {str(e)}")
+
+# ==================== AUTH ENDPOINTS REMOVED ====================
+# Auth is now handled by SvelteKit endpoints in src/routes/api/auth/
+# This avoids conflicts between FastAPI and SvelteKit auth systems
+# ==================== END AUTH ENDPOINTS ====================
 
 if __name__ == "__main__":
     import uvicorn

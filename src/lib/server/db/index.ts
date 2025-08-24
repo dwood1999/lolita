@@ -7,6 +7,12 @@ export async function getDbConnection() {
 	if (!pool) {
 		try {
 			console.log('Creating database connection pool...');
+			console.log('DB_HOST:', env.DB_HOST);
+			console.log('DB_USER:', env.DB_USER);
+			console.log('DB_NAME:', env.DB_NAME);
+			console.log('DB_PASSWORD length:', env.DB_PASSWORD?.length);
+			console.log('DB_PASSWORD first 5 chars:', env.DB_PASSWORD?.substring(0, 5));
+			console.log('DB_PASSWORD full (SvelteKit):', env.DB_PASSWORD);
 			
 			pool = mysql.createPool({
 				host: env.DB_HOST || 'localhost',
@@ -19,7 +25,7 @@ export async function getDbConnection() {
 				idleTimeout: 60000,
 				queueLimit: 0,
 				charset: 'utf8mb4',
-				ssl: (env.DB_SSL && env.DB_SSL.toLowerCase() === 'true') ? { rejectUnauthorized: true } : undefined,
+				ssl: false,
 				acquireTimeout: 60000,
 				timeout: 60000
 			});
@@ -34,12 +40,19 @@ export async function getDbConnection() {
 }
 
 export async function executeQuery(query: string, params: any[] = []) {
-	const conn = await getDbConnection();
+	let conn;
 	try {
+		conn = await getDbConnection();
 		const [results] = await conn.execute(query, params);
 		return results;
+	} catch (error) {
+		console.error('Database query error:', error);
+		console.error('Query:', query);
+		throw error;
 	} finally {
-		conn.release(); // Return connection to pool
+		if (conn) {
+			conn.release(); // Return connection to pool
+		}
 	}
 }
 
@@ -96,8 +109,17 @@ export function getPoolStatus() {
 	if (!pool) {
 		return { status: 'No pool created' };
 	}
-
-	return { status: 'Pool active' };
+	
+	return {
+		allConnections: pool.pool._allConnections.length,
+		freeConnections: pool.pool._freeConnections.length,
+		connectionQueue: pool.pool._connectionQueue.length,
+		acquiringConnections: pool.pool._acquiringConnections.length,
+		config: {
+			connectionLimit: pool.pool.config.connectionLimit,
+			queueLimit: pool.pool.config.queueLimit
+		}
+	};
 }
 
 // Gracefully close the pool

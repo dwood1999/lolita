@@ -7,27 +7,61 @@
 	let analysis: any = null;
 	let error = '';
 	let pollingInterval: ReturnType<typeof setInterval> | null = null;
-	let activeTab = 'overview';
+	let activeTab = 'dashboard';
+	let activeSection = 'core';
+	let sidebarCollapsed = false;
 	
 	// Lazy loading for tabs
-	let loadedTabs = new Set(['overview']); // Always load overview first
+	let loadedTabs = new Set(['dashboard']); // Always load dashboard first
 	let tabContentCache = new Map();
 
 	const analysisId = $page.params.id;
 
-	const tabs = [
-		{ id: 'overview', label: 'Overview', icon: '📊' },
-		{ id: 'story', label: 'Story & Craft', icon: '📖' },
-		{ id: 'genre', label: 'Genre', icon: '🎬' },
-		{ id: 'grok', label: 'Grok Analysis', icon: '🤖' },
-		{ id: 'gpt5', label: 'GPT-5 Writing Excellence', icon: '🧠' },
-		{ id: 'financial', label: 'Financial Analysis', icon: '💰' },
-		{ id: 'market', label: 'Market Intelligence', icon: '📊' },
-		{ id: 'producer', label: 'Producer Dashboard', icon: '🎬' },
-		{ id: 'media', label: 'Media', icon: '🎨' },
-		{ id: 'improvements', label: 'Improvements', icon: '💡' },
-		{ id: 'production', label: 'Production', icon: '🎭' }
-	];
+	// Organized navigation structure
+	const navigationSections = {
+		core: {
+			label: 'Core Analysis',
+			icon: '📊',
+			color: 'blue',
+			tabs: [
+				{ id: 'dashboard', label: 'Executive Dashboard', icon: '📈', description: 'Key metrics and overview' },
+				{ id: 'story', label: 'Story & Craft', icon: '📖', description: 'Structure, characters, writing quality' },
+				{ id: 'financial', label: 'Financial Intelligence', icon: '💰', description: 'ROI, box office, market analysis' }
+			]
+		},
+		insights: {
+			label: 'Professional Insights',
+			icon: '🔍',
+			color: 'purple',
+			tabs: [
+				{ id: 'grok', label: 'Reality Check', icon: '🔍', description: 'Honest industry assessment' },
+				{ id: 'gpt5', label: 'Excellence Analysis', icon: '🧠', description: 'Writing craft evaluation' },
+				{ id: 'genre', label: 'Genre Intelligence', icon: '🎬', description: 'Genre conventions & expectations' }
+			]
+		},
+		business: {
+			label: 'Market & Business',
+			icon: '📈',
+			color: 'green',
+			tabs: [
+				{ id: 'market', label: 'Market Intelligence', icon: '📊', description: 'Industry trends & positioning' },
+				{ id: 'producer', label: 'Producer Dashboard', icon: '🎬', description: 'Production insights' },
+				{ id: 'production', label: 'Production Planning', icon: '🎭', description: 'Logistics & scheduling' }
+			]
+		},
+		creative: {
+			label: 'Creative & Media',
+			icon: '🎨',
+			color: 'indigo',
+			tabs: [
+				{ id: 'media', label: 'Media Assets', icon: '🎨', description: 'Visual content & materials' },
+				{ id: 'improvements', label: 'Enhancement Notes', icon: '💡', description: 'Recommendations & feedback' }
+			]
+		}
+	};
+
+	// Legacy tabs array for backward compatibility
+	const tabs = Object.values(navigationSections).flatMap(section => section.tabs);
 
 	// Smart polling with exponential backoff
 	let pollInterval = 2000; // Start with 2 seconds
@@ -37,6 +71,20 @@
 	onMount(() => {
 		fetchAnalysis();
 		startSmartPolling();
+		
+		// Handle legacy URL parameters for backward compatibility
+		const urlParams = new URLSearchParams(window.location.search);
+		const legacyTab = urlParams.get('tab');
+		if (legacyTab && legacyTab !== 'dashboard') {
+			// Map old tab names to new ones if needed
+			const tabMapping: Record<string, string> = {
+				'overview': 'dashboard'
+			};
+			const mappedTab = tabMapping[legacyTab] || legacyTab;
+			if (tabs.some(tab => tab.id === mappedTab)) {
+				navigateToTab(mappedTab);
+			}
+		}
 
 		// Cleanup on unmount
 		return () => {
@@ -175,6 +223,75 @@
 			}
 		}
 		return v;
+	}
+
+	// New navigation helper functions
+	function navigateToTab(tabId: string) {
+		const section = Object.keys(navigationSections).find(sectionKey => 
+			navigationSections[sectionKey as keyof typeof navigationSections].tabs.some((tab: any) => tab.id === tabId)
+		);
+		if (section) {
+			activeSection = section;
+		}
+		activeTab = tabId;
+		
+		// Add to loaded tabs for lazy loading
+		if (!loadedTabs.has(tabId)) {
+			loadedTabs.add(tabId);
+			loadedTabs = loadedTabs; // Trigger reactivity
+		}
+	}
+
+	function getTabCompletionStatus(tabId: string): 'complete' | 'partial' | 'none' {
+		if (!analysis?.result) return 'none';
+		
+		switch (tabId) {
+			case 'dashboard':
+				return 'complete';
+			case 'story':
+				return (analysis.result.structural_analysis || analysis.result.character_analysis) ? 'complete' : 'partial';
+			case 'financial':
+				return analysis.result.deepseek_financial_score ? 'complete' : 'partial';
+			case 'grok':
+				return analysis.result.grok_verdict ? 'complete' : 'none';
+			case 'gpt5':
+				return analysis.result.openai_verdict ? 'complete' : 'none';
+			case 'genre':
+				return analysis.result.genre ? 'complete' : 'partial';
+			case 'market':
+				return analysis.result.perplexity_market_score ? 'complete' : 'partial';
+			case 'producer':
+				return analysis.result.recommendations ? 'complete' : 'partial';
+			case 'production':
+				return 'partial';
+			case 'media':
+				return 'partial';
+			case 'improvements':
+				return analysis.result.recommendations ? 'partial' : 'none';
+			default:
+				return 'none';
+		}
+	}
+
+	function getScoreForPreview(tabId: string): number | null {
+		if (!analysis?.result) return null;
+		
+		switch (tabId) {
+			case 'story':
+				return analysis.result.overall_score || null;
+			case 'financial':
+				return analysis.result.deepseek_financial_score || null;
+			case 'grok':
+				return analysis.result.grok_score || null;
+			case 'market':
+				return analysis.result.perplexity_market_score || null;
+			default:
+				return null;
+		}
+	}
+
+	function getSectionColor(sectionKey: string): string {
+		return navigationSections[sectionKey as keyof typeof navigationSections]?.color || 'gray';
 	}
 
 	function getControversy(): any {
@@ -487,7 +604,7 @@
 		<div class="text-center">
 			<div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
 			<h2 class="text-xl font-semibold text-gray-900 mb-2">Loading Analysis...</h2>
-			<p class="text-gray-600">Please wait while we fetch your Claude Opus 4.1 analysis.</p>
+			<p class="text-gray-600">Please wait while we fetch your professional analysis.</p>
 		</div>
 	</div>
 {:else if error}
@@ -519,7 +636,7 @@
 				</div>
 			</div>
 			<h2 class="text-xl font-semibold text-gray-900 mb-2">Analysis in Progress</h2>
-			<p class="text-gray-600 mb-4">Claude Opus 4.1 is analyzing your screenplay...</p>
+			<p class="text-gray-600 mb-4">Our analysis engine is evaluating your screenplay...</p>
 			<div class="w-64 bg-gray-200 rounded-full h-2 mx-auto">
 				<div class="bg-blue-600 h-2 rounded-full animate-pulse" style="width: 60%"></div>
 			</div>
@@ -605,23 +722,23 @@
 									{@const category = budget < 1000000 ? 'Micro-budget' : budget < 5000000 ? 'Low-budget' : budget < 20000000 ? 'Mid-budget' : budget < 50000000 ? 'High-budget' : 'Tentpole'}
 									{#if budget < 1000000}
 										<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
-											🤖 AI Est: {category} (${(budget/1000000).toFixed(1)}M)
+											📊 Est: {category} (${(budget/1000000).toFixed(1)}M)
 										</span>
 									{:else if budget < 5000000}
 										<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-											🤖 AI Est: {category} (${(budget/1000000).toFixed(0)}M)
+											📊 Est: {category} (${(budget/1000000).toFixed(0)}M)
 										</span>
 									{:else if budget < 20000000}
 										<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-											🤖 AI Est: {category} (${(budget/1000000).toFixed(0)}M)
+											📊 Est: {category} (${(budget/1000000).toFixed(0)}M)
 										</span>
 									{:else if budget < 50000000}
 										<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
-											🤖 AI Est: {category} (${(budget/1000000).toFixed(0)}M)
+											📊 Est: {category} (${(budget/1000000).toFixed(0)}M)
 										</span>
 									{:else}
 										<span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-											🤖 AI Est: {category} (${(budget/1000000).toFixed(0)}M)
+											📊 Est: {category} (${(budget/1000000).toFixed(0)}M)
 										</span>
 									{/if}
 								{/if}
@@ -638,7 +755,7 @@
 								{/if}
 								
 								<span class="text-sm text-gray-500">
-									Analyzed by {analysis.result.ai_model}
+									Professional Analysis
 								</span>
 								<span class="text-sm text-gray-500">
 									${parseFloat(analysis.result.cost || 0).toFixed(4)} cost
@@ -657,7 +774,7 @@
 							</div>
 						</div>
 						<div class="flex items-center space-x-4">
-							<!-- Craft Score (Claude) -->
+							<!-- Craft Score -->
 							<div class="text-center">
 								<div class="text-2xl font-bold {getScoreColor(analysis.result.overall_score)} px-3 py-2 rounded-lg">
 									{analysis.result.overall_score}/10
@@ -669,7 +786,7 @@
 								</div>
 							</div>
 							
-							<!-- Reality Score (Grok) -->
+							<!-- Reality Score -->
 							{#if analysis.result.grok_score}
 								<div class="text-center">
 									<div class="text-2xl font-bold {getScoreColor(analysis.result.grok_score)} px-3 py-2 rounded-lg">
@@ -694,7 +811,7 @@
 								</div>
 							{/if}
 							
-							<!-- Commercial Score (OpenAI) -->
+							<!-- Commercial Score -->
 							{#if analysis.result.openai_score}
 								<div class="text-center">
 									<div class="text-2xl font-bold {getScoreColor(analysis.result.openai_score)} px-3 py-2 rounded-lg">
@@ -721,10 +838,10 @@
 						</div>
 					</div>
 
-					<!-- AI Verdicts - Only show on overview -->
+					<!-- Analysis Verdicts - Only show on dashboard -->
 					{#if activeTab === 'overview'}
 						<div class="mt-6 space-y-4">
-							<!-- Claude Verdict -->
+							<!-- Craft Analysis Verdict -->
 							{#if analysis.result.one_line_verdict}
 								<div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md">
 									<div class="flex items-start">
@@ -738,7 +855,7 @@
 								</div>
 							{/if}
 							
-							<!-- Grok Verdict -->
+							<!-- Reality Check Verdict -->
 							{#if analysis.result.grok_verdict && analysis.result.grok_verdict !== 'Analysis incomplete'}
 								<div class="bg-purple-50 border-l-4 border-purple-400 p-4 rounded-md">
 									<div class="flex items-start">
@@ -752,7 +869,7 @@
 								</div>
 							{/if}
 							
-													<!-- OpenAI Verdict -->
+													<!-- Commercial Analysis Verdict -->
 						{#if analysis.result.openai_verdict && analysis.result.openai_verdict !== 'Analysis incomplete' && analysis.result.openai_verdict !== 'Analysis completed'}
 							<div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-md">
 								<div class="flex items-start">
@@ -766,7 +883,7 @@
 							</div>
 						{/if}
 						
-						<!-- GPT-5 Verdict -->
+						<!-- Excellence Analysis Verdict -->
 						{#if getGPT5ExecutiveAssessment() && getGPT5ExecutiveAssessment().professional_verdict}
 							{@const gpt5Assessment = getGPT5ExecutiveAssessment()}
 							<div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-md">
@@ -791,92 +908,324 @@
 			</div>
 		</div>
 
-		<!-- Tabs Navigation -->
-		<div class="bg-white border-b border-gray-200">
-			<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<nav class="flex space-x-8" aria-label="Tabs">
-					{#each tabs as tab}
-						<button
-							class="py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap transition-colors duration-200 {
-								activeTab === tab.id
-									? 'border-blue-500 text-blue-600'
-									: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-							}"
-							on:click={() => activeTab = tab.id}
+		<!-- Main Content Layout with Sidebar -->
+		<div class="flex h-screen">
+			<!-- Sidebar Navigation -->
+			<div class="bg-white border-r border-gray-200 {sidebarCollapsed ? 'w-16' : 'w-80'} flex-shrink-0 transition-all duration-300 overflow-y-auto">
+				<!-- Sidebar Header -->
+				<div class="p-4 border-b border-gray-200">
+					<div class="flex items-center justify-between">
+						{#if !sidebarCollapsed}
+							<h2 class="text-lg font-semibold text-gray-900">Analysis Navigation</h2>
+						{/if}
+						<button 
+							on:click={() => sidebarCollapsed = !sidebarCollapsed}
+							class="p-2 rounded-md hover:bg-gray-100 transition-colors"
+							aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
 						>
-							<span class="mr-2">{tab.icon}</span>
-							{tab.label}
+							<svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+							</svg>
 						</button>
+					</div>
+				</div>
+
+				<!-- Navigation Sections -->
+				<div class="p-4 space-y-6">
+					{#each Object.entries(navigationSections) as [sectionKey, section]}
+						<div class="space-y-2">
+							<!-- Section Header -->
+							{#if !sidebarCollapsed}
+								<div class="flex items-center space-x-2 px-2 py-1">
+									<span class="text-lg">{section.icon}</span>
+									<h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide">{section.label}</h3>
+								</div>
+							{:else}
+								<div class="flex justify-center py-1">
+									<span class="text-xl" title={section.label}>{section.icon}</span>
+								</div>
+							{/if}
+
+							<!-- Section Tabs -->
+							<div class="space-y-1">
+								{#each section.tabs as tab}
+									{@const status = getTabCompletionStatus(tab.id)}
+									{@const score = getScoreForPreview(tab.id)}
+									<button
+										class="w-full text-left p-3 rounded-lg transition-all duration-200 group relative {
+											activeTab === tab.id
+												? (section.color === 'blue' ? 'bg-blue-50 border border-blue-200 text-blue-700' :
+												   section.color === 'purple' ? 'bg-purple-50 border border-purple-200 text-purple-700' :
+												   section.color === 'green' ? 'bg-green-50 border border-green-200 text-green-700' :
+												   section.color === 'indigo' ? 'bg-indigo-50 border border-indigo-200 text-indigo-700' :
+												   'bg-gray-50 border border-gray-200 text-gray-700')
+												: 'hover:bg-gray-50 text-gray-600 hover:text-gray-900'
+										}"
+										on:click={() => navigateToTab(tab.id)}
+									>
+										<div class="flex items-center space-x-3">
+											<span class="text-lg">{tab.icon}</span>
+											{#if !sidebarCollapsed}
+												<div class="flex-1 min-w-0">
+													<div class="flex items-center justify-between">
+														<span class="font-medium truncate">{tab.label}</span>
+														<div class="flex items-center space-x-2">
+															{#if score !== null}
+																<span class="text-xs font-bold px-2 py-1 rounded-full {getScoreColor(score)}">{score}/10</span>
+															{/if}
+															<div class="w-2 h-2 rounded-full {
+																status === 'complete' ? 'bg-green-400' : 
+																status === 'partial' ? 'bg-yellow-400' : 'bg-gray-300'
+															}"></div>
+														</div>
+													</div>
+													<p class="text-xs text-gray-500 mt-1 truncate">{tab.description}</p>
+												</div>
+											{/if}
+										</div>
+									</button>
+								{/each}
+							</div>
+						</div>
 					{/each}
-				</nav>
+				</div>
 			</div>
-		</div>
 
-		<!-- Tab Content -->
-		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-			{#if activeTab === 'overview'}
-				<!-- Overview Tab -->
+			<!-- Main Content Area -->
+			<div class="flex-1 overflow-y-auto bg-gray-50">
+				<div class="max-w-6xl mx-auto px-6 py-8">
+			{#if activeTab === 'dashboard'}
+				<!-- Executive Dashboard -->
 				<div class="space-y-8">
-					<!-- Logline -->
-					{#if analysis.result.logline}
-						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-							<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-								<span class="text-green-600 mr-2">🎬</span>
-								Logline
-							</h3>
-							<div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-md">
-								<p class="text-lg font-medium text-green-900 italic">"{analysis.result.logline}"</p>
-							</div>
+					<!-- Dashboard Header -->
+					<div class="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-xl p-8 text-white">
+						<div class="text-center">
+							<h1 class="text-3xl font-bold mb-2">Executive Analysis Dashboard</h1>
+							<p class="text-blue-100 text-lg">Comprehensive screenplay evaluation and investment intelligence</p>
 						</div>
-					{/if}
+					</div>
 
-					<!-- Executive Summary -->
-					{#if analysis.result.executive_summary}
-						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-							<h3 class="text-xl font-bold text-gray-900 mb-4">Executive Summary</h3>
-							<div class="prose max-w-none text-gray-700">
-								{@html analysis.result.executive_summary.replace(/\n/g, '<br>')}
+					<!-- Key Metrics Grid -->
+					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+						<!-- Overall Score -->
+						{#if analysis.result.overall_score}
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 text-center">
+								<div class="mb-3">
+									<div class="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center mx-auto">
+										<span class="text-white text-xl font-bold">{analysis.result.overall_score}</span>
+									</div>
+								</div>
+								<h3 class="text-lg font-semibold text-gray-900 mb-1">Overall Score</h3>
+								<div class="w-full bg-gray-200 rounded-full h-2">
+									<div class="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-500" 
+										 style="width: {(analysis.result.overall_score / 10) * 100}%"></div>
+								</div>
 							</div>
-						</div>
-					{/if}
+						{/if}
 
-					<!-- Strengths & Weaknesses Grid -->
+						<!-- Financial Score -->
+						{#if analysis.result.deepseek_financial_score}
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 text-center">
+								<div class="mb-3">
+									<div class="w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-full flex items-center justify-center mx-auto">
+										<span class="text-white text-xl font-bold">{analysis.result.deepseek_financial_score}</span>
+									</div>
+								</div>
+								<h3 class="text-lg font-semibold text-gray-900 mb-1">Financial Viability</h3>
+								<div class="w-full bg-gray-200 rounded-full h-2">
+									<div class="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full transition-all duration-500" 
+										 style="width: {(analysis.result.deepseek_financial_score / 10) * 100}%"></div>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Market Score -->
+						{#if analysis.result.perplexity_market_score}
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 text-center">
+								<div class="mb-3">
+									<div class="w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-600 rounded-full flex items-center justify-center mx-auto">
+										<span class="text-white text-xl font-bold">{analysis.result.perplexity_market_score}</span>
+									</div>
+								</div>
+								<h3 class="text-lg font-semibold text-gray-900 mb-1">Market Potential</h3>
+								<div class="w-full bg-gray-200 rounded-full h-2">
+									<div class="bg-gradient-to-r from-purple-400 to-purple-600 h-2 rounded-full transition-all duration-500" 
+										 style="width: {(analysis.result.perplexity_market_score / 10) * 100}%"></div>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Investment Recommendation -->
+						{#if analysis.result.recommendation}
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 p-6 text-center">
+								<div class="mb-3">
+									<div class="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto">
+										<span class="text-white text-2xl">🎯</span>
+									</div>
+								</div>
+								<h3 class="text-lg font-semibold text-gray-900 mb-1">Recommendation</h3>
+								<span class="inline-block px-3 py-1 rounded-full text-sm font-medium {getRecommendationColor(analysis.result.recommendation)}">
+									{analysis.result.recommendation}
+								</span>
+							</div>
+						{/if}
+					</div>
+
+					<!-- AI Verdicts Row -->
+					<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+						<!-- Claude Verdict -->
+						{#if analysis.result.one_line_verdict}
+							<div class="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6">
+								<div class="flex items-start space-x-4">
+									<div class="flex-shrink-0">
+										<div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+											<span class="text-blue-600 font-bold">C</span>
+										</div>
+									</div>
+									<div class="flex-1">
+										<h4 class="text-lg font-semibold text-blue-900 mb-2">Craft Analysis</h4>
+										<p class="text-blue-800 italic font-medium">"{analysis.result.one_line_verdict}"</p>
+									</div>
+								</div>
+							</div>
+						{/if}
+						
+						<!-- Grok Verdict -->
+						{#if analysis.result.grok_verdict && analysis.result.grok_verdict !== 'Analysis incomplete'}
+							<div class="bg-gradient-to-br from-purple-50 to-violet-50 border border-purple-200 rounded-xl p-6">
+								<div class="flex items-start space-x-4">
+									<div class="flex-shrink-0">
+										<div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+											<span class="text-purple-600 font-bold">G</span>
+										</div>
+									</div>
+									<div class="flex-1">
+										<h4 class="text-lg font-semibold text-purple-900 mb-2">Reality Check</h4>
+										<p class="text-purple-800 italic font-medium">"{cleanGrokVerdict(analysis.result.grok_verdict)}"</p>
+									</div>
+								</div>
+							</div>
+						{/if}
+						
+						<!-- OpenAI Verdict -->
+						{#if analysis.result.openai_verdict && analysis.result.openai_verdict !== 'Analysis incomplete' && analysis.result.openai_verdict !== 'Analysis completed'}
+							<div class="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6">
+								<div class="flex items-start space-x-4">
+									<div class="flex-shrink-0">
+										<div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+											<span class="text-green-600 font-bold">O</span>
+										</div>
+									</div>
+									<div class="flex-1">
+										<h4 class="text-lg font-semibold text-green-900 mb-2">Commercial Analysis</h4>
+										<p class="text-green-800 italic font-medium">"{analysis.result.openai_verdict}"</p>
+									</div>
+								</div>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Quick Insights Grid -->
 					<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-						<!-- Strengths -->
-						{#if parseJsonField(analysis.result.top_strengths).length > 0}
-							<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-								<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-									<span class="text-green-600 mr-2">✅</span>
-									Top Strengths
-								</h3>
-								<ul class="space-y-3">
-									{#each parseJsonField(analysis.result.top_strengths) as strength}
-										<li class="flex items-start">
-											<span class="flex-shrink-0 text-green-600 mr-3 mt-0.5">•</span>
-											<span class="text-gray-700">{strength}</span>
-										</li>
-									{/each}
-								</ul>
-							</div>
-						{/if}
+						<!-- Analysis Preview Cards -->
+						<div class="space-y-4">
+							<h3 class="text-xl font-bold text-gray-900 mb-4">Analysis Overview</h3>
+							
+							{#each Object.values(navigationSections) as section}
+								<div class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+									<div class="p-4">
+										<div class="flex items-center justify-between">
+											<div class="flex items-center space-x-3">
+												<span class="text-2xl">{section.icon}</span>
+												<div>
+													<h4 class="font-semibold text-gray-900">{section.label}</h4>
+													<p class="text-sm text-gray-500">{section.tabs.length} analysis areas</p>
+												</div>
+											</div>
+											<button 
+												on:click={() => navigateToTab(section.tabs[0].id)}
+												class="px-4 py-2 rounded-lg transition-colors text-sm font-medium {
+													section.color === 'blue' ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' :
+													section.color === 'purple' ? 'bg-purple-50 text-purple-700 hover:bg-purple-100' :
+													section.color === 'green' ? 'bg-green-50 text-green-700 hover:bg-green-100' :
+													section.color === 'indigo' ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' :
+													'bg-gray-50 text-gray-700 hover:bg-gray-100'
+												}"
+											>
+												View Details
+											</button>
+										</div>
+										
+										<!-- Section tabs preview -->
+										<div class="mt-3 flex flex-wrap gap-2">
+											{#each section.tabs as tab}
+												{@const status = getTabCompletionStatus(tab.id)}
+												<div class="flex items-center space-x-1 text-xs">
+													<div class="w-2 h-2 rounded-full {
+														status === 'complete' ? 'bg-green-400' : 
+														status === 'partial' ? 'bg-yellow-400' : 'bg-gray-300'
+													}"></div>
+													<span class="text-gray-600">{tab.label}</span>
+												</div>
+											{/each}
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
 
-						<!-- Weaknesses -->
-						{#if parseJsonField(analysis.result.key_weaknesses).length > 0}
-							<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-								<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-									<span class="text-orange-600 mr-2">⚠️</span>
-									Key Weaknesses
-								</h3>
-								<ul class="space-y-3">
-									{#each parseJsonField(analysis.result.key_weaknesses) as weakness}
-										<li class="flex items-start">
-											<span class="flex-shrink-0 text-orange-600 mr-3 mt-0.5">•</span>
-											<span class="text-gray-700">{weakness}</span>
-										</li>
-									{/each}
-								</ul>
+						<!-- Project Details & Key Info -->
+						<div class="space-y-6">
+							<!-- Logline -->
+							{#if analysis.result.logline}
+								<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+									<h3 class="text-lg font-bold text-gray-900 mb-3 flex items-center">
+										<span class="text-blue-600 mr-2">🎬</span>
+										Logline
+									</h3>
+									<p class="text-gray-700 italic text-lg leading-relaxed">"{analysis.result.logline}"</p>
+								</div>
+							{/if}
+
+							<!-- Strengths & Weaknesses -->
+							<div class="grid grid-cols-1 gap-4">
+								<!-- Strengths -->
+								{#if parseJsonField(analysis.result.top_strengths).length > 0}
+									<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+										<h4 class="font-semibold text-gray-900 mb-3 flex items-center">
+											<span class="text-green-600 mr-2">✅</span>
+											Top Strengths
+										</h4>
+										<ul class="space-y-2">
+											{#each parseJsonField(analysis.result.top_strengths).slice(0, 3) as strength}
+												<li class="flex items-start text-sm">
+													<span class="flex-shrink-0 text-green-600 mr-2 mt-0.5">•</span>
+													<span class="text-gray-700">{strength}</span>
+												</li>
+											{/each}
+										</ul>
+									</div>
+								{/if}
+
+								<!-- Weaknesses -->
+								{#if parseJsonField(analysis.result.key_weaknesses).length > 0}
+									<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+										<h4 class="font-semibold text-gray-900 mb-3 flex items-center">
+											<span class="text-orange-600 mr-2">⚠️</span>
+											Key Areas for Improvement
+										</h4>
+										<ul class="space-y-2">
+											{#each parseJsonField(analysis.result.key_weaknesses).slice(0, 3) as weakness}
+												<li class="flex items-start text-sm">
+													<span class="flex-shrink-0 text-orange-600 mr-2 mt-0.5">•</span>
+													<span class="text-gray-700">{weakness}</span>
+												</li>
+											{/each}
+										</ul>
+									</div>
+								{/if}
 							</div>
-						{/if}
+						</div>
 					</div>
 				</div>
 
@@ -1719,7 +2068,7 @@
 			</div>
 
 		{:else if activeTab === 'financial'}
-			<!-- Enhanced Financial Analysis Tab -->
+			<!-- Financial Intelligence Tab -->
 			<div class="space-y-8">
 				{#if analysis.result.deepseek_financial_score || analysis.result.deepseek_box_office_prediction}
 					<!-- Header with AI Badge -->
@@ -3241,6 +3590,8 @@
 					</div>
 				</div>
 			{/if}
+				</div>
+			</div>
 		</div>
 
 		<!-- Actions Footer -->

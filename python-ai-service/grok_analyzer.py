@@ -307,12 +307,22 @@ Provide analysis as JSON with these exact keys:
             "stream": False
         }
         
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                self.api_url,
-                headers=headers,
-                json=payload
-            )
+        async with httpx.AsyncClient(timeout=90.0) as client:  # Increased timeout
+            try:
+                response = await client.post(
+                    self.api_url,
+                    headers=headers,
+                    json=payload
+                )
+            except httpx.ReadTimeout:
+                logger.error("❌ Grok API timeout after 90 seconds")
+                raise Exception("Grok API timeout - service may be overloaded")
+            except httpx.ConnectTimeout:
+                logger.error("❌ Grok API connection timeout")
+                raise Exception("Grok API connection timeout")
+            except Exception as e:
+                logger.error(f"❌ Grok API request failed: {e}")
+                raise
             
             if response.status_code != 200:
                 raise Exception(f"Grok API error: {response.status_code} - {response.text}")

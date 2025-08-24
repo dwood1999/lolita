@@ -8,7 +8,9 @@
 
 	onMount(async () => {
 		try {
-			const response = await fetch('/api/auth/me');
+			const response = await fetch('/api/auth/me', {
+				credentials: 'include' // Include cookies for session
+			});
 			const data = await response.json();
 			if (data.success) {
 				user = data.user;
@@ -20,12 +22,30 @@
 
 	async function handleLogout() {
 		try {
-			await fetch('/api/auth/logout', { method: 'POST' });
+			// Clear frontend state immediately
 			user = null;
 			showUserMenu = false;
-			goto('/auth/login');
+			
+			// Call SvelteKit logout endpoint to clear session cookies
+			await fetch('/api/auth/logout', { 
+				method: 'POST',
+				credentials: 'include' // Include cookies for session
+			});
+			
+			// Also call FastAPI logout to clear that session too
+			await fetch('/api/auth/logout', { 
+				method: 'POST'
+			});
+			
+			// Force complete page reload and redirect to login with logout flag
+			window.location.replace('/auth/login?logout=true');
+			
 		} catch (error) {
 			console.error('Logout failed:', error);
+			// Force redirect even if logout calls fail
+			user = null;
+			showUserMenu = false;
+			window.location.replace('/auth/login?logout=true');
 		}
 	}
 
@@ -66,6 +86,12 @@
 						class="nav-link {currentPath === '/about' ? 'active' : ''}"
 					>
 						About
+					</a>
+					<a
+						href="/incentives"
+						class="nav-link {currentPath === '/incentives' ? 'active' : ''}"
+					>
+						Incentives
 					</a>
 					{#if user}
 						<a

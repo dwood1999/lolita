@@ -60,9 +60,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			updatedAt: analysis.updated_at,
 			aiModel: analysis.ai_model,
 			// Renamed scores to reflect what they actually measure
-			craftScore: analysis.overall_score,      // Claude: Story craft & structure
-			realityScore: analysis.grok_score,      // Grok: Brutal reality check
-			commercialScore: analysis.openai_score  // OpenAI: Commercial viability
+			craftScore: analysis.overall_score,      // Story craft & structure
+			realityScore: analysis.grok_score,      // Brutal reality check
+			commercialScore: analysis.openai_score  // Commercial viability
 		}));
 
 		return json({

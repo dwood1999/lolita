@@ -56,8 +56,8 @@
 							</h1>
 							
 							<p class="mt-6 text-xl text-blue-100 leading-relaxed">
-								Powered by <strong class="text-blue-300">Claude Opus 4.1</strong>, <strong class="text-purple-300">Grok 4</strong>, and <strong class="text-green-300">ChatGPT-5</strong>. 
-								Get detailed feedback, Hollywood poster concepts, and comprehensive industry insights from three AI perspectives.
+								Powered by our <strong class="text-blue-300">Advanced Analysis Engine</strong>. 
+								Get detailed feedback, Hollywood poster concepts, and comprehensive industry insights from multiple professional perspectives.
 							</p>
 							
 							<div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
@@ -109,11 +109,11 @@
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 		<div class="text-center mb-16">
 			<h2 class="text-4xl font-bold text-gray-900 mb-4">
-				Powered by <span class="bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">Triple AI</span>
+				Powered by <span class="bg-gradient-to-r from-blue-600 via-purple-600 to-green-600 bg-clip-text text-transparent">Multi-Engine Analysis</span>
 			</h2>
 			<p class="text-xl text-gray-600 max-w-3xl mx-auto">
-				Get the most comprehensive screenplay analysis with Claude Opus 4.1's narrative expertise, 
-				Grok 4's brutally honest insights, and ChatGPT-5's industry-focused evaluation.
+				Get the most comprehensive screenplay analysis with professional narrative expertise, 
+				brutally honest industry insights, and commercial evaluation.
 			</p>
 		</div>
 
@@ -122,7 +122,7 @@
 				<div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
 					<span class="text-white text-2xl">🎯</span>
 				</div>
-				<h3 class="text-lg font-semibold text-gray-900 mb-2">Claude Analysis</h3>
+				<h3 class="text-lg font-semibold text-gray-900 mb-2">Craft Analysis</h3>
 				<p class="text-gray-600 text-sm">Professional narrative structure, character development, and craft evaluation</p>
 			</div>
 
@@ -130,15 +130,15 @@
 				<div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
 					<span class="text-white text-2xl">💀</span>
 				</div>
-				<h3 class="text-lg font-semibold text-gray-900 mb-2">Grok Brutal Honesty</h3>
-				<p class="text-gray-600 text-sm">Internet-native cultural reality check and unfiltered industry feedback</p>
+				<h3 class="text-lg font-semibold text-gray-900 mb-2">Reality Check</h3>
+				<p class="text-gray-600 text-sm">Cultural awareness and unfiltered industry feedback</p>
 			</div>
 
 			<div class="text-center group">
 				<div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-200">
 					<span class="text-white text-2xl">🏢</span>
 				</div>
-				<h3 class="text-lg font-semibold text-gray-900 mb-2">ChatGPT Industry Focus</h3>
+				<h3 class="text-lg font-semibold text-gray-900 mb-2">Commercial Intelligence</h3>
 				<p class="text-gray-600 text-sm">Commercial viability, studio fit, and professional development insights</p>
 			</div>
 
@@ -147,7 +147,7 @@
 					<span class="text-white text-2xl">🎬</span>
 				</div>
 				<h3 class="text-lg font-semibold text-gray-900 mb-2">Movie Poster</h3>
-				<p class="text-gray-600 text-sm">AI-generated Hollywood poster concept visualizing your story's potential</p>
+				<p class="text-gray-600 text-sm">Professional Hollywood poster concept visualizing your story's potential</p>
 			</div>
 
 			<div class="text-center group">

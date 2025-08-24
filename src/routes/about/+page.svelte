@@ -38,8 +38,8 @@
 					</span>
 				</h1>
 				<p class="text-xl text-blue-100 max-w-4xl mx-auto leading-relaxed">
-					The world's most advanced AI-powered screenplay analysis platform, combining the narrative expertise of Claude Opus 4.1, 
-					the brutal honesty of Grok 4, and the industry insights of ChatGPT-5 to deliver unparalleled script evaluation.
+					The world's most advanced screenplay analysis platform, combining professional narrative expertise, 
+					brutally honest industry insights, and comprehensive commercial evaluation to deliver unparalleled script assessment.
 				</p>
 			</div>
 		</div>
@@ -99,15 +99,15 @@
 			<div class="text-center mb-16">
 				<h2 class="text-4xl font-bold text-gray-900 mb-6">Cutting-Edge Technology</h2>
 				<p class="text-xl text-gray-600 max-w-4xl mx-auto">
-					Built with modern web technologies and powered by the world's most advanced AI models for 
-					unparalleled screenplay analysis capabilities.
+					Built with modern web technologies and powered by advanced analysis engines for 
+					unparalleled screenplay evaluation capabilities.
 				</p>
 			</div>
 
 			<div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
-				<!-- AI Models -->
+				<!-- Analysis Methodology -->
 				<div class="space-y-6">
-					<h3 class="text-2xl font-bold text-gray-900 mb-6">AI Analysis Engine</h3>
+					<h3 class="text-2xl font-bold text-gray-900 mb-6">Analysis Methodology</h3>
 					
 					<div class="space-y-4">
 						<div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
@@ -115,10 +115,10 @@
 								<div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center mr-4">
 									<span class="text-white text-lg">🎯</span>
 								</div>
-								<h4 class="text-lg font-semibold text-gray-900">Claude Opus 4.1</h4>
+								<h4 class="text-lg font-semibold text-gray-900">Craft Analysis</h4>
 							</div>
 							<p class="text-gray-600">
-								Provides professional narrative structure analysis, character development insights, 
+								Professional narrative structure analysis, character development insights, 
 								and craft evaluation with industry-standard terminology and methodology.
 							</p>
 						</div>
@@ -128,10 +128,10 @@
 								<div class="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mr-4">
 									<span class="text-white text-lg">💀</span>
 								</div>
-								<h4 class="text-lg font-semibold text-gray-900">Grok 4</h4>
+								<h4 class="text-lg font-semibold text-gray-900">Reality Check</h4>
 							</div>
 							<p class="text-gray-600">
-								Delivers brutally honest feedback with internet-native cultural awareness, 
+								Brutally honest feedback with cultural awareness, 
 								providing unfiltered industry reality checks and market viability insights.
 							</p>
 						</div>
@@ -141,11 +141,11 @@
 								<div class="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-4">
 									<span class="text-white text-lg">🏢</span>
 								</div>
-								<h4 class="text-lg font-semibold text-gray-900">ChatGPT-5</h4>
+								<h4 class="text-lg font-semibold text-gray-900">Commercial Intelligence</h4>
 							</div>
 							<p class="text-gray-600">
-								Focuses on commercial viability, studio fit, and professional development 
-								with industry-focused evaluation and market intelligence.
+								Commercial viability assessment, studio fit evaluation, and professional development 
+								insights with industry-focused market intelligence.
 							</p>
 						</div>
 					</div>

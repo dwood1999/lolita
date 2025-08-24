@@ -29,6 +29,9 @@ async function initDatabase() {
 				id VARCHAR(255) PRIMARY KEY,
 				email VARCHAR(255) UNIQUE NOT NULL,
 				password_hash VARCHAR(255) NOT NULL,
+				full_name VARCHAR(255) DEFAULT '',
+				is_active BOOLEAN DEFAULT 1,
+				is_verified BOOLEAN DEFAULT 1,
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)
 		`);

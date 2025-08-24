@@ -84,7 +84,8 @@ class DeepSeekAnalyzer:
         title: str, 
         genre: str = "",
         budget_estimate: Optional[float] = None,
-        comparable_films: List[str] = None
+        comparable_films: List[str] = None,
+        include_incentive_analysis: bool = True
     ) -> Optional[DeepSeekResult]:
         """Comprehensive financial analysis of screenplay potential"""
         
@@ -95,9 +96,14 @@ class DeepSeekAnalyzer:
         try:
             start_time = time.time()
             
+            # Get incentive data if enabled
+            incentive_context = None
+            if include_incentive_analysis and budget_estimate:
+                incentive_context = await self._get_incentive_context(budget_estimate, genre)
+            
             # Create comprehensive financial analysis prompt
             prompt = self._create_financial_analysis_prompt(
-                screenplay_text, title, genre, budget_estimate, comparable_films or []
+                screenplay_text, title, genre, budget_estimate, comparable_films or [], incentive_context
             )
             
             # Call DeepSeek API
@@ -186,7 +192,8 @@ class DeepSeekAnalyzer:
         title: str, 
         genre: str,
         budget_estimate: Optional[float],
-        comparable_films: List[str]
+        comparable_films: List[str],
+        incentive_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """Create comprehensive financial analysis prompt for DeepSeek"""
         
@@ -196,12 +203,24 @@ class DeepSeekAnalyzer:
         budget_context = f"Estimated budget: ${budget_estimate:,.0f}" if budget_estimate else "Budget: To be determined"
         comparables_context = f"Comparable films: {', '.join(comparable_films)}" if comparable_films else "No specific comparables provided"
         
+        # Add incentive context if available
+        incentive_context_text = ""
+        if incentive_context and incentive_context.get('incentive_options'):
+            incentive_context_text = f"""
+AVAILABLE FILM INCENTIVES FOR THIS BUDGET:
+{self._format_incentive_context(incentive_context)}
+
+IMPORTANT: Factor these real incentive opportunities into your financial analysis. 
+Update budget calculations, ROI projections, and location recommendations accordingly.
+"""
+        
         return f"""You are a Hollywood financial analyst explaining movie investments to smart film enthusiasts. Your job is to break down complex financial concepts into clear, understandable explanations while being thorough and accurate.
 
 SCREENPLAY: "{title}"
 GENRE: {genre}
 {budget_context}
 {comparables_context}
+{incentive_context_text}
 
 SCREENPLAY CONTENT (SAMPLE):
 {screenplay_sample}
@@ -598,6 +617,63 @@ Provide comprehensive, mathematically sound financial analysis with clear reason
         """Estimate token count for cost calculation"""
         # Rough estimation: ~4 characters per token
         return len(text) // 4
+    
+    async def _get_incentive_context(self, budget: float, genre: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Get incentive context for financial analysis"""
+        try:
+            # Import here to avoid circular imports
+            from incentive_service import get_incentive_service
+            
+            service = get_incentive_service()
+            result = service.find_optimal_incentives_for_production(
+                budget=budget,
+                genre=genre,
+                shooting_locations=None,
+                production_duration_weeks=None
+            )
+            
+            logger.info(f"💰 Retrieved {len(result.get('incentive_options', []))} incentive options for DeepSeek analysis")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting incentive context: {e}")
+            return None
+    
+    def _format_incentive_context(self, incentive_context: Dict[str, Any]) -> str:
+        """Format incentive context for AI prompt"""
+        
+        incentive_options = incentive_context.get('incentive_options', [])
+        if not incentive_options:
+            return "No specific incentives available for this budget range."
+        
+        formatted_text = ""
+        for i, incentive in enumerate(incentive_options[:5], 1):  # Top 5 incentives
+            country = incentive.get('country', 'Unknown')
+            region = incentive.get('region', '')
+            percentage = incentive.get('percentage', 0)
+            savings = incentive.get('enhanced_savings', 0)
+            enhancement_score = incentive.get('enhanced_score', 1.0)
+            
+            location = f"{country}, {region}" if region else country
+            
+            formatted_text += f"""
+{i}. {location} - {percentage}% {incentive.get('incentive_type', 'incentive')}
+   Potential Savings: ${savings:,.0f}
+   Match Score: {enhancement_score:.2f}x (higher is better)
+   Business Insights: {'; '.join(incentive.get('business_insights', []))}
+"""
+        
+        # Add summary
+        summary = incentive_context.get('summary', {})
+        if summary:
+            formatted_text += f"""
+INCENTIVE SUMMARY:
+- Total Options: {summary.get('total_options', 0)}
+- Best Single Savings: ${summary.get('best_single_savings', 0):,.0f}
+- Budget Optimization Potential: {summary.get('budget_optimization_potential', 0)}%
+"""
+        
+        return formatted_text.strip()
     
     def to_database_format(self, result: DeepSeekResult) -> Dict[str, Any]:
         """Convert DeepSeekResult to database format"""

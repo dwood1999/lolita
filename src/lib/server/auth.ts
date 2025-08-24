@@ -140,10 +140,10 @@ export async function createUser(email: string, password: string): Promise<User>
 		parallelism: 1
 	});
 	
-	// Insert user with columns that exist in the current schema
+	// Insert with additional fields that exist in the current schema
 	await executeQuery(
-		'INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)',
-		[userId, email, passwordHash]
+		'INSERT INTO users (id, email, password_hash, full_name, is_active, is_verified) VALUES (?, ?, ?, ?, ?, ?)',
+		[userId, email, passwordHash, '', 1, 1]
 	);
 	
 	return {

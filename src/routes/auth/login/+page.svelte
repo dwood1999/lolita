@@ -9,17 +9,25 @@
 	let error = '';
 
 	onMount(() => {
-		// Check if user is already logged in
-		fetch('/api/auth/me')
-			.then(res => res.json())
-			.then(data => {
-				if (data.success) {
-					goto('/dashboard');
-				}
+		// Check if we're coming from a logout (don't auto-redirect in this case)
+		const urlParams = new URLSearchParams(window.location.search);
+		const fromLogout = urlParams.get('logout') === 'true';
+		
+		if (!fromLogout) {
+			// Check if user is already logged in
+			fetch('/api/auth/me', {
+				credentials: 'include'
 			})
-			.catch(() => {
-				// User not logged in, stay on login page
-			});
+				.then(res => res.json())
+				.then(data => {
+					if (data.success) {
+						goto('/dashboard');
+					}
+				})
+				.catch(() => {
+					// User not logged in, stay on login page
+				});
+		}
 	});
 
 	async function handleLogin() {

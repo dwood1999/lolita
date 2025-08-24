@@ -585,7 +585,7 @@
 							progressData = {
 								stage: 'upload_complete',
 								progress: 15,
-								message: 'Upload complete! Initializing AI analysis...',
+								message: 'Upload complete! Initializing analysis...',
 								details: {
 									file_size: `${(file!.size / 1024 / 1024).toFixed(1)} MB`,
 									upload_time: `${((Date.now() - uploadStartTime) / 1000).toFixed(1)}s`
@@ -807,7 +807,7 @@
 							{/if}
 							
 							<p class="mt-2 text-sm text-gray-600">
-								This affects casting, director suggestions, and financial forecasts. If left blank, AI will infer a realistic budget range based on industry standards and the screenplay.
+								This affects casting, director suggestions, and financial forecasts. If left blank, our system will infer a realistic budget range based on industry standards and the screenplay.
 							</p>
 						</div>
 
@@ -952,9 +952,9 @@
 											<span class="{progressData.progress >= 0 ? 'font-medium' : ''}">Start</span>
 											<span class="{progressData.progress >= 15 ? 'font-medium' : ''}">Upload</span>
 											<span class="{progressData.progress >= 25 ? 'font-medium' : ''}">Process</span>
-											<span class="{progressData.progress >= 50 ? 'font-medium' : ''}">Claude</span>
-											<span class="{progressData.progress >= 75 ? 'font-medium' : ''}">Grok</span>
-											<span class="{progressData.progress >= 85 ? 'font-medium' : ''}">ChatGPT</span>
+											<span class="{progressData.progress >= 50 ? 'font-medium' : ''}">Craft</span>
+											<span class="{progressData.progress >= 75 ? 'font-medium' : ''}">Reality</span>
+											<span class="{progressData.progress >= 85 ? 'font-medium' : ''}">Commercial</span>
 											<span class="{progressData.progress >= 100 ? 'font-medium' : ''}">Complete</span>
 										</div>
 									</div>
@@ -1032,7 +1032,7 @@
 											<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
 												{#if progressData.details.model}
 													<div class="flex justify-between items-center">
-														<span class="text-gray-600">AI Model:</span>
+														<span class="text-gray-600">Analysis Engine:</span>
 														<span class="font-medium text-gray-900 bg-gray-100 px-2 py-1 rounded text-xs">{progressData.details.model}</span>
 													</div>
 												{/if}
