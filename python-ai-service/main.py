@@ -1,5 +1,5 @@
 """
-Lolita Screenplay Analysis Service
+Quilty Screenplay Analysis Service
 Python backend for AI-powered screenplay analysis with Claude Opus 4.1
 """
 
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Lolita Screenplay Analysis Service",
+    title="Quilty Screenplay Analysis Service",
     description="Advanced screenplay analysis platform",
     version="1.0.0"
 )
@@ -211,7 +211,7 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "service": "Lolita Screenplay Analysis Service",
+        "service": "Quilty Screenplay Analysis Service",
         "version": "1.0.0",
         "timestamp": datetime.now().isoformat()
     }
@@ -1689,7 +1689,7 @@ if __name__ == "__main__":
     # Get port from environment or default to 8001
     port = int(os.getenv("SERVICE_PORT", 8001))
     
-    logger.info(f"🚀 Starting Lolita Screenplay Analysis Service on port {port}")
+    logger.info(f"🚀 Starting Quilty Screenplay Analysis Service on port {port}")
     
     uvicorn.run(
         "main:app",

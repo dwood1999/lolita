@@ -92,7 +92,7 @@
 </script>
 
 <svelte:head>
-	<title>Create Account - Screenplay Evaluation Tool</title>
+	<title>Create Account - Quilty</title>
 </svelte:head>
 
 <div class="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">

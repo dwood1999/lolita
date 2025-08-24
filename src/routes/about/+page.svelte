@@ -18,8 +18,8 @@
 </script>
 
 <svelte:head>
-	<title>About - Lolita Screenplay Analysis Tool</title>
-	<meta name="description" content="Learn about Lolita, the professional AI-powered screenplay analysis platform that combines Claude Opus 4.1, Grok 4, and ChatGPT-5 for comprehensive script evaluation." />
+	<title>About - Quilty Screenplay Analysis Tool</title>
+	<meta name="description" content="Learn about Quilty, the professional AI-powered screenplay analysis platform that combines Claude Opus 4.1, Grok 4, and ChatGPT-5 for comprehensive script evaluation." />
 </svelte:head>
 
 <div class="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 min-h-screen">
@@ -34,7 +34,7 @@
 				<h1 class="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-8">
 					<span class="block text-white mb-2">About</span>
 					<span class="block bg-gradient-to-r from-blue-400 via-purple-400 to-yellow-400 bg-clip-text text-transparent">
-						Lolita
+						Quilty
 					</span>
 				</h1>
 				<p class="text-xl text-blue-100 max-w-4xl mx-auto leading-relaxed">
@@ -286,7 +286,7 @@
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
 			<h2 class="text-4xl font-bold text-white mb-6">Ready to Transform Your Screenplay?</h2>
 			<p class="text-xl text-blue-100 mb-8 max-w-3xl mx-auto">
-				Join thousands of writers who are already using Lolita to elevate their scripts 
+				Join thousands of writers who are already using Quilty to elevate their scripts 
 				with professional AI-powered analysis and insights.
 			</p>
 			<div class="flex flex-col sm:flex-row gap-4 justify-center">

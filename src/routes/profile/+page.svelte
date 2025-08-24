@@ -26,7 +26,7 @@
 </script>
 
 <svelte:head>
-	<title>Profile - Screenplay Evaluation Tool</title>
+	<title>Profile - Quilty</title>
 </svelte:head>
 
 {#if loading}

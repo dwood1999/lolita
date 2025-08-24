@@ -1,4 +1,4 @@
-# Lolita Screenplay Analysis Tool
+# Quilty Screenplay Analysis Tool
 
 A professional screenplay analysis and evaluation platform powered by Claude Opus 4.1, built with SvelteKit, Python FastAPI, and MySQL.
 

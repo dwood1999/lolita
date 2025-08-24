@@ -250,3 +250,5 @@ The system is production-ready, fully automated, and provides filmmakers with th
 **Automation Level**: Fully automated with monitoring 🤖
 **User Experience**: Professional-grade interface 🎨
 **Data Coverage**: Global incentives + grants database 🌍
+
+*Note: This system is part of the Quilty screenplay analysis platform.*

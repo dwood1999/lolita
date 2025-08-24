@@ -21,7 +21,7 @@
 </script>
 
 <svelte:head>
-	<title>Lolita - AI-Powered Screenplay Analysis</title>
+	<title>Quilty - AI-Powered Screenplay Analysis</title>
 	<meta name="description" content="Professional screenplay analysis powered by Claude Opus 4.1 and Grok 4. Get detailed feedback, Hollywood poster concepts, and industry insights." />
 </svelte:head>
 

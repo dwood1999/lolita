@@ -61,11 +61,11 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			return json({ error: 'Access denied' }, { status: 403 });
 		}
 
-		// Enhance with database metadata (created_at, updated_at)
+		// Enhance with database metadata (created_at, updated_at, public status)
 		try {
 			const { executeQuery } = await import('$lib/server/db');
 			const dbResults = await executeQuery(`
-				SELECT created_at, updated_at 
+				SELECT created_at, updated_at, is_public, public_share_token, shared_at 
 				FROM screenplay_analyses 
 				WHERE id = ? AND user_id = ?
 			`, [id, locals.user.id]) as any[];
@@ -73,6 +73,9 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 			if (dbResults.length > 0) {
 				result.created_at = dbResults[0].created_at;
 				result.updated_at = dbResults[0].updated_at;
+				result.is_public = dbResults[0].is_public;
+				result.public_share_token = dbResults[0].public_share_token;
+				result.shared_at = dbResults[0].shared_at;
 			}
 		} catch (dbError) {
 			console.warn('Could not fetch database metadata:', dbError);

@@ -196,7 +196,7 @@
 </script>
 
 <svelte:head>
-	<title>Film Incentives Hub - Lolita</title>
+	<title>Film Incentives Hub - Quilty</title>
 	<meta name="description" content="Comprehensive global film incentives database with interactive maps, calculators, and comparison tools for filmmakers and producers." />
 </svelte:head>
 
@@ -206,36 +206,35 @@
 		<div class="w-full h-full" style="background-image: url('data:image/svg+xml,<svg width=&quot;60&quot; height=&quot;60&quot; viewBox=&quot;0 0 60 60&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;><g fill=&quot;none&quot; fill-rule=&quot;evenodd&quot;><g fill=&quot;%23ffffff&quot; fill-opacity=&quot;0.02&quot;><circle cx=&quot;30&quot; cy=&quot;30&quot; r=&quot;2&quot;/></g></g></svg>');"></div>
 	</div>
 	
-	<div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+	<div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 		<div class="text-center">
-			<h1 class="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight mb-8">
-				<span class="block text-white mb-2">Global Film</span>
-				<span class="block bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
+			<h1 class="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+				<span class="text-white">Global Film </span>
+				<span class="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
 					Incentives Hub
 				</span>
 			</h1>
-			<p class="text-xl text-indigo-100 max-w-4xl mx-auto leading-relaxed mb-8">
-				Discover the world's most lucrative film incentives, tax credits, and grants. 
-				Interactive maps, advanced calculators, and comprehensive location intelligence for smart production decisions.
+			<p class="text-lg text-indigo-100 max-w-3xl mx-auto mb-6">
+				Discover film incentives, tax credits, and grants with interactive maps and calculators.
 			</p>
 			
 			<!-- Quick Stats -->
-			<div class="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-4xl mx-auto">
+			<div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
 				<div class="text-center">
-					<div class="text-3xl font-bold text-yellow-400">{incentives.length}</div>
-					<div class="text-sm text-indigo-200">Active Incentives</div>
+					<div class="text-2xl font-bold text-yellow-400">{incentives.length}</div>
+					<div class="text-xs text-indigo-200">Active Incentives</div>
 				</div>
 				<div class="text-center">
-					<div class="text-3xl font-bold text-green-400">{countries.length}</div>
-					<div class="text-sm text-indigo-200">Countries</div>
+					<div class="text-2xl font-bold text-green-400">{countries.length}</div>
+					<div class="text-xs text-indigo-200">Countries</div>
 				</div>
 				<div class="text-center">
-					<div class="text-3xl font-bold text-blue-400">35%</div>
-					<div class="text-sm text-indigo-200">Max Incentive</div>
+					<div class="text-2xl font-bold text-blue-400">35%</div>
+					<div class="text-xs text-indigo-200">Max Incentive</div>
 				</div>
 				<div class="text-center">
-					<div class="text-3xl font-bold text-purple-400">$50M</div>
-					<div class="text-sm text-indigo-200">Largest Cap</div>
+					<div class="text-2xl font-bold text-purple-400">$50M</div>
+					<div class="text-xs text-indigo-200">Largest Cap</div>
 				</div>
 			</div>
 		</div>

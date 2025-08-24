@@ -169,7 +169,7 @@
 </script>
 
 <svelte:head>
-	<title>{screenplay?.title || 'Loading...'} - Screenplay Evaluation Tool</title>
+	<title>{screenplay?.title || 'Loading...'} - Quilty</title>
 </svelte:head>
 
 {#if loading}

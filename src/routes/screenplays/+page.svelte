@@ -84,7 +84,7 @@
 </script>
 
 <svelte:head>
-	<title>Screenplays - Screenplay Evaluation Tool</title>
+	<title>Screenplays - Quilty</title>
 </svelte:head>
 
 {#if loading}

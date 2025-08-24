@@ -6,7 +6,7 @@ let pool: mysql.Pool | null = null;
 export async function getDbConnection() {
 	if (!pool) {
 		try {
-			console.log('Creating database connection pool...');
+			console.log('Creating Quilty database connection pool...');
 			console.log('DB_HOST:', env.DB_HOST);
 			console.log('DB_USER:', env.DB_USER);
 			console.log('DB_NAME:', env.DB_NAME);

@@ -89,7 +89,7 @@
 </script>
 
 <svelte:head>
-	<title>Dashboard - Screenplay Evaluation Tool</title>
+	<title>Dashboard - Quilty</title>
 </svelte:head>
 
 {#if loading}

@@ -10,6 +10,10 @@
 	let activeTab = 'dashboard';
 	let activeSection = 'core';
 	let sidebarCollapsed = false;
+	let isPublic = false;
+	let isUpdatingPublicStatus = false;
+	let publicShareToken = null;
+	let showShareUrl = false;
 	
 	// Lazy loading for tabs
 	let loadedTabs = new Set(['dashboard']); // Always load dashboard first
@@ -155,6 +159,8 @@
 			}
 
 			analysis = data;
+			isPublic = data.is_public || false;
+			publicShareToken = data.public_share_token || null;
 			loading = false;
 
 			// Stop polling if analysis is complete or failed
@@ -593,10 +599,59 @@
 		}
 	}
 
+	async function togglePublicStatus() {
+		if (isUpdatingPublicStatus) return;
+		
+		isUpdatingPublicStatus = true;
+		try {
+			const response = await fetch(`/api/screenplays/analysis/${analysisId}/public`, {
+				method: 'PATCH',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ is_public: !isPublic })
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to update sharing status');
+			}
+
+			const data = await response.json();
+			isPublic = data.is_public;
+			publicShareToken = data.public_share_token;
+			
+			// Show success message and share URL
+			if (isPublic) {
+				console.log('Analysis is now publicly sharable');
+				showShareUrl = true;
+				setTimeout(() => showShareUrl = false, 5000); // Hide after 5 seconds
+			} else {
+				console.log('Analysis is now private');
+				showShareUrl = false;
+			}
+		} catch (err) {
+			console.error('Failed to update sharing status:', err);
+			// Revert the toggle on error
+		} finally {
+			isUpdatingPublicStatus = false;
+		}
+	}
+
+	function copyShareUrl() {
+		if (publicShareToken) {
+			const shareUrl = `${window.location.origin}/public/analysis/${publicShareToken}`;
+			navigator.clipboard.writeText(shareUrl).then(() => {
+				console.log('Share URL copied to clipboard');
+			}).catch(err => {
+				console.error('Failed to copy URL:', err);
+			});
+		}
+	}
+
 </script>
 
 <svelte:head>
-	<title>Analysis Results - {analysis?.result?.title || 'Screenplay'} - Lolita</title>
+	<title>Analysis Results - {analysis?.result?.title || 'Screenplay'} - Quilty</title>
 </svelte:head>
 
 {#if loading}
@@ -836,7 +891,56 @@
 								</div>
 							{/if}
 						</div>
+						
+						<!-- Make Sharable Toggle -->
+						<div class="flex items-center space-x-3 ml-6">
+							<span class="text-sm font-medium text-gray-700">Make Sharable:</span>
+							<button
+								on:click={togglePublicStatus}
+								disabled={isUpdatingPublicStatus}
+								class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {isPublic ? 'bg-blue-600' : 'bg-gray-200'} {isUpdatingPublicStatus ? 'opacity-50 cursor-not-allowed' : ''}"
+								role="switch"
+								aria-checked={isPublic}
+								aria-label="Toggle public sharing"
+							>
+								<span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {isPublic ? 'translate-x-6' : 'translate-x-1'}"></span>
+							</button>
+							{#if isPublic}
+								<span class="text-xs text-green-600 font-medium">🌐 Public</span>
+							{:else}
+								<span class="text-xs text-gray-500 font-medium">🔒 Private</span>
+							{/if}
+							{#if isUpdatingPublicStatus}
+								<div class="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+							{/if}
+						</div>
 					</div>
+
+					<!-- Share URL Display -->
+					{#if isPublic && publicShareToken && (showShareUrl || isPublic)}
+						<div class="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+							<div class="flex items-center justify-between">
+								<div class="flex-1">
+									<p class="text-sm font-medium text-green-800 mb-2">🌐 Public Share URL:</p>
+									<div class="flex items-center space-x-2">
+										<input 
+											type="text" 
+											readonly 
+											value="{window?.location?.origin || ''}/public/analysis/{publicShareToken}"
+											class="flex-1 px-3 py-2 text-sm bg-white border border-green-300 rounded-md text-gray-700 font-mono"
+										/>
+										<button 
+											on:click={copyShareUrl}
+											class="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors"
+										>
+											Copy
+										</button>
+									</div>
+								</div>
+							</div>
+							<p class="text-xs text-green-600 mt-2">Anyone with this link can view your analysis results without signing in.</p>
+						</div>
+					{/if}
 
 					<!-- Analysis Verdicts - Only show on dashboard -->
 					{#if activeTab === 'overview'}

@@ -1,8 +1,8 @@
-# Lolita Screenplay Analysis - Complete Setup Guide
+# Quilty Screenplay Analysis - Complete Setup Guide
 
 ## 🚀 System Overview
 
-Lolita is a comprehensive AI-powered screenplay analysis platform that provides:
+Quilty is a comprehensive AI-powered screenplay analysis platform that provides:
 - Multi-AI analysis (Claude Opus 4.1, Grok 4, OpenAI GPT-5, GPT-5 Writing Excellence)
 - Source material detection and IP analysis
 - Hollywood-quality movie poster generation from multiple sources

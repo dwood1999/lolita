@@ -655,7 +655,7 @@
 </script>
 
 <svelte:head>
-	<title>Upload Screenplay - Screenplay Evaluation Tool</title>
+	<title>Upload Screenplay - Quilty</title>
 </svelte:head>
 
 {#if loading}
