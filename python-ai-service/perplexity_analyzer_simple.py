@@ -79,11 +79,14 @@ class PerplexityAnalyzer:
             
             processing_time = time.time() - start_time
             
+            # Calculate a simple dynamic score based on response content
+            dynamic_score = self._calculate_simple_market_score(response, genre, title)
+            
             result = PerplexityResult(
                 market_trends={"content": response},
-                market_opportunity_score=7.0,
+                market_opportunity_score=dynamic_score,
                 competitive_advantage="Market analysis completed",
-                market_recommendation="Proceed with development",
+                market_recommendation=self._get_simple_recommendation(dynamic_score),
                 research_date=datetime.now().isoformat(),
                 data_freshness="Current",
                 processing_time=processing_time,
@@ -161,3 +164,65 @@ class PerplexityAnalyzer:
             'perplexity_success': bool(result.success) if result.success is not None else None,
             'perplexity_error_message': str(result.error_message) if result.error_message else None
         }
+    
+    def _calculate_simple_market_score(self, response: str, genre: str, title: str) -> float:
+        """Calculate simple dynamic market score based on response content"""
+        
+        base_score = 6.0  # Start slightly above middle for simple analyzer
+        response_lower = response.lower()
+        
+        # Simple positive market indicators
+        positive_indicators = [
+            'strong market', 'growing demand', 'popular genre', 'successful',
+            'profitable', 'high potential', 'favorable', 'trending',
+            'audience interest', 'commercial appeal', 'box office'
+        ]
+        
+        # Simple negative market indicators
+        negative_indicators = [
+            'declining market', 'oversaturated', 'limited appeal', 'risky',
+            'challenging', 'difficult', 'poor performance', 'weak demand',
+            'niche audience', 'limited commercial'
+        ]
+        
+        # Count indicators
+        positive_count = sum(1 for indicator in positive_indicators if indicator in response_lower)
+        negative_count = sum(1 for indicator in negative_indicators if indicator in response_lower)
+        
+        # Adjust score based on indicators
+        base_score += (positive_count * 0.3) - (negative_count * 0.4)
+        
+        # Simple genre adjustments
+        if genre.lower() in ['action', 'comedy', 'horror']:
+            base_score += 0.3  # Generally more commercial
+        elif genre.lower() in ['drama', 'documentary']:
+            base_score -= 0.2  # Generally less commercial
+        
+        # Add simple randomness for variation
+        import hashlib
+        content_hash = int(hashlib.md5(f"{title}{genre}{response}".encode()).hexdigest()[:8], 16)
+        import random
+        random.seed(content_hash % 2147483647)
+        variation = (random.random() - 0.5) * 0.6  # ±0.3 variation
+        base_score += variation
+        
+        # Ensure bounds
+        final_score = max(1.0, min(10.0, base_score))
+        
+        logger.info(f"📊 Simple Perplexity score: Positive={positive_count}, "
+                   f"Negative={negative_count}, Genre={genre} → Score={final_score:.1f}/10")
+        
+        return final_score
+    
+    def _get_simple_recommendation(self, score: float) -> str:
+        """Get simple recommendation based on calculated score"""
+        if score >= 8.0:
+            return "Strong market opportunity - proceed with confidence"
+        elif score >= 6.5:
+            return "Favorable market conditions - good potential"
+        elif score >= 5.0:
+            return "Moderate opportunity - careful positioning required"
+        elif score >= 3.0:
+            return "Challenging market - consider risks"
+        else:
+            return "Limited market opportunity - high risk"

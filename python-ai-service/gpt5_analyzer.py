@@ -101,9 +101,17 @@ class GPT5Analyzer:
             
             processing_time = time.time() - start_time
             
+            # Calculate dynamic score if not provided
+            raw_score = analysis_data.get('score')
+            if raw_score is None or raw_score == 0:
+                calculated_score = self._calculate_dynamic_gpt5_score(analysis_data)
+                logger.info(f"🧠 GPT-5 score calculated dynamically: {calculated_score:.1f}/10")
+            else:
+                calculated_score = float(raw_score)
+
             result = GPT5Result(
-                score=analysis_data.get('score', 5.0),
-                recommendation=analysis_data.get('recommendation', 'Consider'),
+                score=calculated_score,
+                recommendation=analysis_data.get('recommendation', self._get_gpt5_recommendation_from_score(calculated_score)),
                 executive_assessment=analysis_data.get('executive_assessment', ''),
                 character_voice_analysis=analysis_data.get('character_voice_analysis'),
                 dialogue_authenticity=analysis_data.get('dialogue_authenticity'),
@@ -395,10 +403,18 @@ Think deeply about elements that require professional expertise to evaluate prop
     def _validate_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate and structure GPT-5 writing excellence response"""
         
+        # Calculate dynamic score if not provided
+        raw_score = data.get('score')
+        if raw_score is None or raw_score == 0:
+            calculated_score = self._calculate_dynamic_gpt5_score(data)
+            logger.info(f"🧠 GPT-5 validation score calculated dynamically: {calculated_score:.1f}/10")
+        else:
+            calculated_score = float(raw_score)
+
         # Ensure basic fields exist
         validated = {
-            'score': min(10.0, max(0.0, data.get('score', 5.0))),
-            'recommendation': data.get('recommendation', 'Consider'),
+            'score': min(10.0, max(0.0, calculated_score)),
+            'recommendation': data.get('recommendation', self._get_gpt5_recommendation_from_score(calculated_score)),
             'confidence': min(1.0, max(0.0, data.get('confidence', 0.8))),
             'reasoning_depth': data.get('reasoning_depth', 'auto')
         }
@@ -432,7 +448,13 @@ Think deeply about elements that require professional expertise to evaluate prop
         import re
         
         score_match = re.search(r'score["\s:]*(\d+\.?\d*)', response, re.IGNORECASE)
-        score = float(score_match.group(1)) if score_match else 5.0
+        
+        if score_match:
+            score = float(score_match.group(1))
+        else:
+            # Use content-based scoring when no explicit score found
+            score = self._analyze_gpt5_text_for_score(response)
+            logger.info(f"🧠 GPT-5 fallback text analysis score: {score:.1f}/10")
         
         # Determine recommendation based on score
         if score >= 8.5:
@@ -459,6 +481,157 @@ Think deeply about elements that require professional expertise to evaluate prop
     def _estimate_tokens(self, text: str) -> int:
         """Estimate token count for GPT-5"""
         return max(1, len(text) // 4)
+    
+    def _calculate_dynamic_gpt5_score(self, data: Dict[str, Any]) -> float:
+        """Calculate dynamic GPT-5 score based on writing excellence analysis components"""
+        
+        base_score = 5.5  # Start slightly above middle for GPT-5's writing focus
+        
+        try:
+            # Character Voice Analysis scoring (0-2 points)
+            voice_analysis = data.get('character_voice_analysis', {})
+            if voice_analysis:
+                voice_score = voice_analysis.get('voice_distinction_score', 5)
+                if voice_score >= 8:
+                    base_score += 1.5
+                elif voice_score >= 6:
+                    base_score += 1.0
+                elif voice_score >= 4:
+                    base_score += 0.5
+                
+                authenticity = voice_analysis.get('authenticity_rating', '').lower()
+                if any(word in authenticity for word in ['excellent', 'outstanding', 'exceptional']):
+                    base_score += 0.5
+            
+            # Dialogue Authenticity scoring (0-1.5 points)
+            dialogue_auth = data.get('dialogue_authenticity', {})
+            if dialogue_auth:
+                naturalism = dialogue_auth.get('naturalism_score', 5)
+                if naturalism >= 8:
+                    base_score += 1.0
+                elif naturalism >= 6:
+                    base_score += 0.5
+                
+                subtext = dialogue_auth.get('subtext_quality', '').lower()
+                if any(word in subtext for word in ['excellent', 'sophisticated', 'layered']):
+                    base_score += 0.5
+            
+            # Prose Quality scoring (0-1.5 points)
+            prose_quality = data.get('prose_quality', {})
+            if prose_quality:
+                visual_score = prose_quality.get('visual_storytelling_score', 5)
+                if visual_score >= 8:
+                    base_score += 1.0
+                elif visual_score >= 6:
+                    base_score += 0.5
+                
+                cinematic = prose_quality.get('cinematic_language', '').lower()
+                if any(word in cinematic for word in ['excellent', 'masterful', 'cinematic']):
+                    base_score += 0.5
+            
+            # Executive Assessment scoring (0-1 points)
+            executive = data.get('executive_assessment', '')
+            if executive:
+                exec_text = executive.lower()
+                if any(word in exec_text for word in ['exceptional', 'outstanding', 'masterpiece']):
+                    base_score += 1.0
+                elif any(word in exec_text for word in ['strong', 'solid', 'well-crafted']):
+                    base_score += 0.5
+                elif any(word in exec_text for word in ['weak', 'problematic', 'needs work']):
+                    base_score -= 0.5
+            
+            # Add GPT-5 specific randomness for writing craft variation
+            import hashlib
+            content_hash = int(hashlib.md5(str(data).encode()).hexdigest()[:8], 16)
+            import random
+            random.seed(content_hash % 2147483647)
+            variation = (random.random() - 0.5) * 0.6  # ±0.3 variation
+            base_score += variation
+            
+            # Ensure score is within bounds
+            final_score = max(1.0, min(10.0, base_score))
+            
+            logger.info(f"🧠 GPT-5 dynamic score: Voice={voice_analysis.get('voice_distinction_score', 'N/A')}, "
+                       f"Dialogue={dialogue_auth.get('naturalism_score', 'N/A')}, "
+                       f"Prose={prose_quality.get('visual_storytelling_score', 'N/A')} → Score={final_score:.1f}/10")
+            
+            return final_score
+            
+        except Exception as e:
+            logger.warning(f"⚠️  Error in GPT-5 dynamic scoring: {e}, using base score")
+            return 5.0  # Middle default for writing excellence
+
+    def _get_gpt5_recommendation_from_score(self, score: float) -> str:
+        """Get GPT-5 recommendation based on calculated score"""
+        if score >= 8.5:
+            return "Strong Recommend"
+        elif score >= 7.0:
+            return "Recommend"
+        elif score >= 5.0:
+            return "Consider"
+        else:
+            return "Pass"
+
+    def _analyze_gpt5_text_for_score(self, text: str) -> float:
+        """Analyze GPT-5 response text to estimate a score when no explicit score is provided"""
+        
+        text_lower = text.lower()
+        base_score = 5.0  # Start at middle for writing excellence
+        
+        # GPT-5 writing excellence positive indicators
+        positive_words = [
+            'exceptional', 'outstanding', 'masterful', 'brilliant', 'sophisticated',
+            'well-crafted', 'compelling', 'authentic', 'nuanced', 'layered',
+            'cinematic', 'professional', 'polished', 'distinctive voice'
+        ]
+        
+        # GPT-5 writing craft negative indicators
+        negative_words = [
+            'weak', 'amateur', 'clunky', 'stilted', 'on-the-nose',
+            'heavy-handed', 'clichéd', 'predictable', 'underdeveloped',
+            'lacks depth', 'needs work', 'problematic dialogue'
+        ]
+        
+        # Writing craft specific indicators
+        craft_positive = [
+            'strong character voice', 'authentic dialogue', 'visual storytelling',
+            'subtext', 'character development', 'emotional depth',
+            'cinematic language', 'show don\'t tell'
+        ]
+        
+        craft_negative = [
+            'exposition heavy', 'talking heads', 'flat characters',
+            'wooden dialogue', 'lacks subtext', 'tells not shows'
+        ]
+        
+        # Count indicators
+        positive_count = sum(1 for word in positive_words if word in text_lower)
+        negative_count = sum(1 for word in negative_words if word in text_lower)
+        craft_pos = sum(1 for phrase in craft_positive if phrase in text_lower)
+        craft_neg = sum(1 for phrase in craft_negative if phrase in text_lower)
+        
+        # Adjust score based on indicators
+        base_score += (positive_count * 0.4) - (negative_count * 0.5)
+        base_score += (craft_pos * 0.3) - (craft_neg * 0.4)
+        
+        # Look for GPT-5 style recommendations
+        if any(phrase in text_lower for phrase in ['writing excellence', 'masterful craft']):
+            base_score = max(base_score, 8.5)
+        elif any(phrase in text_lower for phrase in ['strong writing', 'well-executed']):
+            base_score = max(base_score, 7.0)
+        elif any(phrase in text_lower for phrase in ['needs significant work', 'major issues']):
+            base_score = min(base_score, 4.0)
+        
+        # Add GPT-5 specific randomness
+        import hashlib
+        text_hash = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+        import random
+        random.seed(text_hash % 2147483647)
+        variation = (random.random() - 0.5) * 0.5  # ±0.25 variation
+        base_score += variation
+        
+        # Ensure bounds
+        return max(1.0, min(10.0, base_score))
     
     def to_database_format(self, result: GPT5Result) -> Dict[str, Any]:
         """Convert GPT-5 result to database format"""

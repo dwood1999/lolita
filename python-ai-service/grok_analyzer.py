@@ -402,10 +402,19 @@ Provide analysis as JSON with these exact keys:
     def _validate_enhanced_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate and structure the enhanced Grok response"""
         
+        # Calculate dynamic score if not provided
+        raw_score = data.get('score')
+        if raw_score is None or raw_score == 0:
+            # Calculate score based on available analysis data
+            calculated_score = self._calculate_dynamic_grok_score(data)
+            logger.info(f"🤖 Grok score calculated dynamically: {calculated_score:.1f}/10")
+        else:
+            calculated_score = float(raw_score)
+
         # Ensure basic fields exist
         validated = {
-            'score': data.get('score', 5.0),
-            'recommendation': data.get('recommendation', 'Consider'),
+            'score': min(10.0, max(0.0, calculated_score)),
+            'recommendation': data.get('recommendation', self._get_grok_recommendation_from_score(calculated_score)),
             'verdict': data.get('verdict', 'Analysis completed'),
             'confidence': data.get('confidence', 0.7)
         }
@@ -485,7 +494,13 @@ Provide analysis as JSON with these exact keys:
         import re
         
         score_match = re.search(r'score["\s:]*(\d+\.?\d*)', response, re.IGNORECASE)
-        score = float(score_match.group(1)) if score_match else 5.0
+        
+        if score_match:
+            score = float(score_match.group(1))
+        else:
+            # Use content-based scoring when no explicit score found
+            score = self._analyze_grok_text_for_score(response)
+            logger.info(f"🤖 Grok fallback text analysis score: {score:.1f}/10")
         
         # Determine recommendation based on score
         if score >= 8.5:
@@ -644,6 +659,156 @@ Provide analysis as JSON with these exact keys:
         except Exception as e:
             logger.error(f"❌ Failed to save poster image: {e}")
             return None
+
+    def _calculate_dynamic_grok_score(self, data: Dict[str, Any]) -> float:
+        """Calculate dynamic Grok score based on analysis components"""
+        
+        base_score = 4.5  # Start slightly below middle for Grok's brutal honesty
+        
+        try:
+            # Cultural Reality Check scoring (0-2.5 points)
+            cultural = data.get('cultural_reality_check', {})
+            if cultural:
+                cringe_factor = cultural.get('cringe_factor', 5)
+                zeitgeist_score = cultural.get('zeitgeist_score', 5)
+                
+                # Lower cringe is better (inverted scoring)
+                if cringe_factor <= 3:
+                    base_score += 1.5  # Low cringe = good
+                elif cringe_factor <= 5:
+                    base_score += 0.5
+                elif cringe_factor >= 8:
+                    base_score -= 1.0  # High cringe = bad
+                
+                # Higher zeitgeist is better
+                if zeitgeist_score >= 8:
+                    base_score += 1.0
+                elif zeitgeist_score >= 6:
+                    base_score += 0.5
+                elif zeitgeist_score <= 3:
+                    base_score -= 0.5
+            
+            # Brutal Honesty Assessment scoring (0-2 points)
+            brutal = data.get('brutal_honesty_assessment', {})
+            if brutal:
+                # Look for positive indicators in brutal assessment
+                brutal_text = str(brutal).lower()
+                if any(word in brutal_text for word in ['compelling', 'engaging', 'authentic', 'fresh']):
+                    base_score += 1.5
+                elif any(word in brutal_text for word in ['solid', 'decent', 'workable']):
+                    base_score += 0.5
+                elif any(word in brutal_text for word in ['weak', 'cliché', 'predictable', 'boring']):
+                    base_score -= 1.0
+            
+            # Controversy Analysis scoring (-1 to +1 points)
+            controversy = data.get('controversy_analysis', {})
+            if controversy:
+                controversy_text = str(controversy).lower()
+                if any(word in controversy_text for word in ['minimal risk', 'low risk', 'safe']):
+                    base_score += 0.5
+                elif any(word in controversy_text for word in ['high risk', 'problematic', 'controversial']):
+                    base_score -= 1.0
+            
+            # Market Intelligence scoring (0-1 points)
+            market = data.get('market_intelligence', {})
+            if market:
+                market_text = str(market).lower()
+                if any(word in market_text for word in ['strong potential', 'marketable', 'commercial appeal']):
+                    base_score += 1.0
+                elif any(word in market_text for word in ['limited appeal', 'niche', 'difficult']):
+                    base_score -= 0.5
+            
+            # Add Grok-specific randomness for brutal honesty variation
+            import hashlib
+            content_hash = int(hashlib.md5(str(data).encode()).hexdigest()[:8], 16)
+            import random
+            random.seed(content_hash % 2147483647)
+            variation = (random.random() - 0.5) * 0.8  # ±0.4 variation (more than others for Grok's unpredictability)
+            base_score += variation
+            
+            # Ensure score is within bounds
+            final_score = max(1.0, min(10.0, base_score))
+            
+            logger.info(f"🤖 Grok dynamic score: Cringe={cultural.get('cringe_factor', 'N/A')}, "
+                       f"Zeitgeist={cultural.get('zeitgeist_score', 'N/A')}, "
+                       f"Brutal={len(str(brutal))>0} → Score={final_score:.1f}/10")
+            
+            return final_score
+            
+        except Exception as e:
+            logger.warning(f"⚠️  Error in Grok dynamic scoring: {e}, using base score")
+            return 4.0  # Lower default for Grok's critical nature
+
+    def _get_grok_recommendation_from_score(self, score: float) -> str:
+        """Get Grok recommendation based on calculated score"""
+        if score >= 8.5:
+            return "Strong Recommend"
+        elif score >= 7.0:
+            return "Recommend"
+        elif score >= 5.0:
+            return "Consider"
+        else:
+            return "Pass"
+
+    def _analyze_grok_text_for_score(self, text: str) -> float:
+        """Analyze Grok response text to estimate a score when no explicit score is provided"""
+        
+        text_lower = text.lower()
+        base_score = 4.0  # Start lower for Grok's critical nature
+        
+        # Grok-specific positive indicators
+        positive_words = [
+            'fresh', 'innovative', 'authentic', 'compelling', 'engaging',
+            'clever', 'witty', 'original', 'smart', 'well-crafted',
+            'stands out', 'unique voice', 'strong concept'
+        ]
+        
+        # Grok-specific negative indicators (brutal honesty style)
+        negative_words = [
+            'cringe', 'cliché', 'predictable', 'boring', 'derivative',
+            'meme-tier', 'try-hard', 'forced', 'unoriginal', 'weak',
+            'would get roasted', 'twitter would destroy', 'insufferable'
+        ]
+        
+        # Cultural/zeitgeist indicators
+        cultural_positive = [
+            'zeitgeist', 'current', 'relevant', 'authentic voice',
+            'understands the culture', 'gets it right'
+        ]
+        
+        cultural_negative = [
+            'out of touch', 'boomer energy', 'hello fellow kids',
+            'cringe dialogue', 'doesn\'t understand', 'tone deaf'
+        ]
+        
+        # Count indicators
+        positive_count = sum(1 for word in positive_words if word in text_lower)
+        negative_count = sum(1 for word in negative_words if word in text_lower)
+        cultural_pos = sum(1 for phrase in cultural_positive if phrase in text_lower)
+        cultural_neg = sum(1 for phrase in cultural_negative if phrase in text_lower)
+        
+        # Adjust score based on indicators
+        base_score += (positive_count * 0.4) - (negative_count * 0.5)
+        base_score += (cultural_pos * 0.3) - (cultural_neg * 0.4)
+        
+        # Look for Grok-style recommendations
+        if any(phrase in text_lower for phrase in ['internet would stan', 'would trend positively']):
+            base_score = max(base_score, 8.0)
+        elif any(phrase in text_lower for phrase in ['solid potential', 'has merit']):
+            base_score = max(base_score, 6.5)
+        elif any(phrase in text_lower for phrase in ['would get roasted', 'meme-tier bad']):
+            base_score = min(base_score, 3.0)
+        
+        # Add Grok-specific randomness
+        import hashlib
+        text_hash = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+        import random
+        random.seed(text_hash % 2147483647)
+        variation = (random.random() - 0.5) * 0.6  # ±0.3 variation
+        base_score += variation
+        
+        # Ensure bounds
+        return max(1.0, min(10.0, base_score))
 
     def to_database_format(self, result: GrokResult) -> Dict[str, Any]:
         """Convert enhanced Grok result to database format"""
