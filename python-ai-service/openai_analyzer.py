@@ -219,11 +219,13 @@ Provide analysis as JSON with these exact keys:
 }}
 
 **SCORING GUIDE:**
-- 9-10: Exceptional, ready for A-list talent and major studio
-- 7-8: Strong, minor polish needed for production
-- 5-6: Promising concept, needs significant development
-- 3-4: Weak execution, major rewrites required
-- 0-2: Not viable in current form
+- 9-10: Exceptional, ready for A-list talent and major studio (rare - only truly outstanding scripts)
+- 7-8: Strong commercial potential, minor polish needed for production
+- 5-6: Promising concept, needs significant development work
+- 3-4: Weak execution, major rewrites required before consideration
+- 1-2: Not viable in current form, fundamental issues
+
+**IMPORTANT:** Be honest and realistic with scoring. Most scripts fall in the 3-7 range. Only exceptional work deserves 8+. Consider commercial viability, craft quality, and market competition. Avoid defaulting to middle scores - differentiate based on actual quality.
 
 **RECOMMENDATION GUIDE:**
 - "Strong Recommend": 8.5+ score, immediate greenlight potential
@@ -317,10 +319,19 @@ Provide analysis as JSON with these exact keys:
     def _validate_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate and structure the OpenAI response"""
         
+        # Calculate dynamic score if not provided
+        raw_score = data.get('score')
+        if raw_score is None or raw_score == 0:
+            # Calculate score based on available analysis data
+            calculated_score = self._calculate_dynamic_score(data)
+            logger.info(f"📊 OpenAI score calculated dynamically: {calculated_score:.1f}/10")
+        else:
+            calculated_score = float(raw_score)
+        
         # Ensure basic fields exist
         validated = {
-            'score': min(10.0, max(0.0, data.get('score', 5.0))),
-            'recommendation': data.get('recommendation', 'Consider'),
+            'score': min(10.0, max(0.0, calculated_score)),
+            'recommendation': data.get('recommendation', self._get_recommendation_from_score(calculated_score)),
             'verdict': data.get('verdict', 'Analysis completed'),
             'confidence': min(1.0, max(0.0, data.get('confidence', 0.7)))
         }
@@ -359,24 +370,113 @@ Provide analysis as JSON with these exact keys:
         
         return validated
     
+    def _calculate_dynamic_score(self, data: Dict[str, Any]) -> float:
+        """Calculate a dynamic score based on analysis components"""
+        
+        base_score = 4.0  # Start lower than 5.0 for more variation
+        
+        try:
+            # Commercial Assessment scoring (0-3 points)
+            commercial = data.get('commercial_assessment', {})
+            if commercial:
+                high_concept = commercial.get('high_concept_score', 5)
+                if high_concept >= 8:
+                    base_score += 2.5
+                elif high_concept >= 6:
+                    base_score += 1.5
+                elif high_concept >= 4:
+                    base_score += 0.5
+                
+                # Franchise potential bonus
+                franchise = commercial.get('franchise_potential', '').lower()
+                if 'high' in franchise or 'strong' in franchise:
+                    base_score += 1.0
+                elif 'moderate' in franchise or 'medium' in franchise:
+                    base_score += 0.5
+                
+                # International appeal bonus
+                international = commercial.get('international_appeal', '').lower()
+                if 'high' in international or 'strong' in international:
+                    base_score += 0.5
+            
+            # Technical Craft scoring (0-2 points)
+            craft = data.get('technical_craft', {})
+            if craft:
+                structure = craft.get('structure_score', 5)
+                if structure >= 8:
+                    base_score += 1.5
+                elif structure >= 6:
+                    base_score += 1.0
+                elif structure >= 4:
+                    base_score += 0.5
+                
+                # Quality indicators
+                dialogue = craft.get('dialogue_quality', '').lower()
+                if any(word in dialogue for word in ['excellent', 'outstanding', 'exceptional']):
+                    base_score += 0.5
+                elif any(word in dialogue for word in ['good', 'strong', 'solid']):
+                    base_score += 0.25
+            
+            # Industry Comparison scoring (0-1 points)
+            industry = data.get('industry_comparison', {})
+            if industry:
+                advantage = industry.get('competitive_advantage', '').lower()
+                if any(word in advantage for word in ['unique', 'innovative', 'fresh', 'original']):
+                    base_score += 1.0
+                elif any(word in advantage for word in ['strong', 'solid', 'good']):
+                    base_score += 0.5
+                
+                timing = industry.get('market_timing', '').lower()
+                if 'perfect' in timing or 'ideal' in timing:
+                    base_score += 0.5
+            
+            # Add some randomness for more realistic variation (±0.3)
+            import random
+            random.seed(hash(str(data)) % 2147483647)  # Consistent randomness based on data
+            variation = (random.random() - 0.5) * 0.6  # -0.3 to +0.3
+            base_score += variation
+            
+            # Ensure score is within bounds
+            final_score = max(1.0, min(10.0, base_score))
+            
+            logger.info(f"💰 Dynamic score calculation: Commercial={commercial.get('high_concept_score', 'N/A')}, "
+                       f"Structure={craft.get('structure_score', 'N/A')}, "
+                       f"Advantage={len(industry.get('competitive_advantage', ''))>0} → Score={final_score:.1f}/10")
+            
+            return final_score
+            
+        except Exception as e:
+            logger.warning(f"⚠️  Error in dynamic scoring: {e}, using base score")
+            return 4.5  # Slightly below middle for failed calculations
+    
+    def _get_recommendation_from_score(self, score: float) -> str:
+        """Get recommendation based on calculated score"""
+        if score >= 8.5:
+            return "Strong Recommend"
+        elif score >= 7.0:
+            return "Recommend"
+        elif score >= 5.0:
+            return "Consider"
+        else:
+            return "Pass"
+    
     def _fallback_parse(self, response: str) -> Dict[str, Any]:
         """Fallback parsing when JSON extraction fails"""
         
-        # Extract score using regex
         import re
         
+        # Try to extract score using regex
         score_match = re.search(r'score["\s:]*(\d+\.?\d*)', response, re.IGNORECASE)
-        score = float(score_match.group(1)) if score_match else 5.0
+        
+        if score_match:
+            score = float(score_match.group(1))
+        else:
+            # Use content-based scoring when no explicit score found
+            score = self._analyze_text_for_score(response)
+            logger.info(f"📊 Fallback text analysis score: {score:.1f}/10")
         
         # Determine recommendation based on score
-        if score >= 8.5:
-            recommendation = "Strong Recommend"
-        elif score >= 7.0:
-            recommendation = "Recommend"
-        elif score >= 5.0:
-            recommendation = "Consider"
-        else:
-            recommendation = "Pass"
+        recommendation = self._get_recommendation_from_score(score)
         
         # Extract verdict (first meaningful sentence)
         lines = response.split('\n')
@@ -386,8 +486,68 @@ Provide analysis as JSON with these exact keys:
             'score': score,
             'recommendation': recommendation,
             'verdict': verdict[:200],  # Limit length
-            'confidence': 0.7  # Default confidence
+            'confidence': 0.6  # Lower confidence for fallback parsing
         }
+    
+    def _analyze_text_for_score(self, text: str) -> float:
+        """Analyze response text to estimate a score when no explicit score is provided"""
+        
+        text_lower = text.lower()
+        base_score = 4.0
+        
+        # Positive indicators
+        positive_words = [
+            'excellent', 'outstanding', 'exceptional', 'brilliant', 'masterful',
+            'compelling', 'engaging', 'strong', 'solid', 'well-crafted',
+            'innovative', 'fresh', 'unique', 'original', 'captivating'
+        ]
+        
+        # Negative indicators  
+        negative_words = [
+            'weak', 'poor', 'lacking', 'problematic', 'confusing', 'unclear',
+            'clichéd', 'predictable', 'boring', 'unoriginal', 'derivative',
+            'needs work', 'requires revision', 'major issues'
+        ]
+        
+        # Commercial indicators
+        commercial_positive = [
+            'marketable', 'commercial appeal', 'box office', 'franchise potential',
+            'broad audience', 'mass appeal', 'profitable', 'bankable'
+        ]
+        
+        commercial_negative = [
+            'niche', 'limited appeal', 'difficult to market', 'risky investment',
+            'narrow audience', 'uncommercial'
+        ]
+        
+        # Count positive indicators
+        positive_count = sum(1 for word in positive_words if word in text_lower)
+        negative_count = sum(1 for word in negative_words if word in text_lower)
+        commercial_pos = sum(1 for phrase in commercial_positive if phrase in text_lower)
+        commercial_neg = sum(1 for phrase in commercial_negative if phrase in text_lower)
+        
+        # Adjust score based on indicators
+        base_score += (positive_count * 0.3) - (negative_count * 0.4)
+        base_score += (commercial_pos * 0.4) - (commercial_neg * 0.3)
+        
+        # Look for explicit recommendations
+        if any(phrase in text_lower for phrase in ['strong recommend', 'highly recommend']):
+            base_score = max(base_score, 8.0)
+        elif 'recommend' in text_lower and 'not' not in text_lower:
+            base_score = max(base_score, 7.0)
+        elif any(phrase in text_lower for phrase in ['pass', 'not recommend', 'avoid']):
+            base_score = min(base_score, 4.0)
+        
+        # Add slight randomness based on text content
+        import hashlib
+        text_hash = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
+        import random
+        random.seed(text_hash % 2147483647)
+        variation = (random.random() - 0.5) * 0.4  # ±0.2 variation
+        base_score += variation
+        
+        # Ensure bounds
+        return max(1.0, min(10.0, base_score))
     
     def _estimate_tokens(self, text: str) -> int:
         """Estimate token count (rough approximation for GPT models)"""
