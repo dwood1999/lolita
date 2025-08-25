@@ -292,6 +292,7 @@ class ScreenplayDatabase:
                     perplexity_competitive_advantage, perplexity_competitive_analysis, perplexity_cost,
                     perplexity_data_freshness, perplexity_distribution_strategy, perplexity_error_message,
                     perplexity_financial_intelligence, perplexity_industry_reports, perplexity_market_score,
+                    perplexity_market_trends,
                     perplexity_processing_time, perplexity_recommendation, perplexity_research_date,
                     perplexity_sources_cited, perplexity_success, perplexity_talent_intelligence,
                     source_adaptation_notes, source_author, source_commercial_implications,
@@ -327,7 +328,7 @@ class ScreenplayDatabase:
                     %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s,
+                    %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s, %s, %s
                 )
@@ -417,6 +418,7 @@ class ScreenplayDatabase:
                     perplexity_financial_intelligence = VALUES(perplexity_financial_intelligence),
                     perplexity_industry_reports = VALUES(perplexity_industry_reports),
                     perplexity_market_score = VALUES(perplexity_market_score),
+                    perplexity_market_trends = VALUES(perplexity_market_trends),
                     perplexity_processing_time = VALUES(perplexity_processing_time),
                     perplexity_recommendation = VALUES(perplexity_recommendation),
                     perplexity_research_date = VALUES(perplexity_research_date),
@@ -509,7 +511,7 @@ class ScreenplayDatabase:
                 analysis_data.get('perplexity_data_freshness'), analysis_data.get('perplexity_distribution_strategy'), 
                 analysis_data.get('perplexity_error_message'),
                 analysis_data.get('perplexity_financial_intelligence'), analysis_data.get('perplexity_industry_reports'), 
-                analysis_data.get('perplexity_market_score'),
+                analysis_data.get('perplexity_market_score'), analysis_data.get('perplexity_market_trends'),
                 analysis_data.get('perplexity_processing_time'), analysis_data.get('perplexity_recommendation'), 
                 analysis_data.get('perplexity_research_date'),
                 analysis_data.get('perplexity_sources_cited'), analysis_data.get('perplexity_success'), 

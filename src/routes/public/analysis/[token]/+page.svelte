@@ -1399,7 +1399,7 @@
 									: analysis.result.perplexity_audience_demographics}
 								
 								{#if demographics && demographics.content}
-									<div>
+									<div class="mb-6">
 										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
 											<span class="text-green-600 mr-2">👥</span>
 											Target Demographics
@@ -1407,6 +1407,90 @@
 										<div class="bg-green-50 rounded-lg p-4 border border-green-200">
 											<div class="prose max-w-none">
 												<p class="text-green-900 leading-relaxed">{demographics.content}</p>
+											</div>
+										</div>
+									</div>
+								{/if}
+							{/if}
+							
+							<!-- Distribution Strategy -->
+							{#if analysis.result.perplexity_distribution_strategy}
+								{@const distribution = typeof analysis.result.perplexity_distribution_strategy === 'string' 
+									? JSON.parse(analysis.result.perplexity_distribution_strategy) 
+									: analysis.result.perplexity_distribution_strategy}
+								
+								{#if distribution && distribution.content}
+									<div class="mb-6">
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-orange-600 mr-2">🚀</span>
+											Distribution Strategy
+										</h4>
+										<div class="bg-orange-50 rounded-lg p-4 border border-orange-200">
+											<div class="prose max-w-none">
+												<p class="text-orange-900 leading-relaxed">{distribution.content}</p>
+											</div>
+										</div>
+									</div>
+								{/if}
+							{/if}
+							
+							<!-- Industry Intelligence -->
+							{#if analysis.result.perplexity_industry_reports}
+								{@const industry = typeof analysis.result.perplexity_industry_reports === 'string' 
+									? JSON.parse(analysis.result.perplexity_industry_reports) 
+									: analysis.result.perplexity_industry_reports}
+								
+								{#if industry && industry.content}
+									<div class="mb-6">
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-indigo-600 mr-2">📋</span>
+											Industry Intelligence
+										</h4>
+										<div class="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+											<div class="prose max-w-none">
+												<p class="text-indigo-900 leading-relaxed">{industry.content}</p>
+											</div>
+										</div>
+									</div>
+								{/if}
+							{/if}
+							
+							<!-- Financial Intelligence -->
+							{#if analysis.result.perplexity_financial_intelligence}
+								{@const financial = typeof analysis.result.perplexity_financial_intelligence === 'string' 
+									? JSON.parse(analysis.result.perplexity_financial_intelligence) 
+									: analysis.result.perplexity_financial_intelligence}
+								
+								{#if financial && financial.content}
+									<div class="mb-6">
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-yellow-600 mr-2">💰</span>
+											Financial Intelligence
+										</h4>
+										<div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+											<div class="prose max-w-none">
+												<p class="text-yellow-900 leading-relaxed">{financial.content}</p>
+											</div>
+										</div>
+									</div>
+								{/if}
+							{/if}
+							
+							<!-- Talent Intelligence -->
+							{#if analysis.result.perplexity_talent_intelligence}
+								{@const talent = typeof analysis.result.perplexity_talent_intelligence === 'string' 
+									? JSON.parse(analysis.result.perplexity_talent_intelligence) 
+									: analysis.result.perplexity_talent_intelligence}
+								
+								{#if talent && talent.content}
+									<div>
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-pink-600 mr-2">⭐</span>
+											Talent Intelligence
+										</h4>
+										<div class="bg-pink-50 rounded-lg p-4 border border-pink-200">
+											<div class="prose max-w-none">
+												<p class="text-pink-900 leading-relaxed">{talent.content}</p>
 											</div>
 										</div>
 									</div>
