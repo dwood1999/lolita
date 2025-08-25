@@ -817,13 +817,7 @@
 								</span>
 								{#if analysis.created_at}
 									<span class="text-sm text-gray-500">
-										📅 {new Date(analysis.created_at).toLocaleDateString('en-US', { 
-											year: 'numeric', 
-											month: 'short', 
-											day: 'numeric',
-											hour: '2-digit',
-											minute: '2-digit'
-										})}
+										📅 {formatDate(analysis.created_at)}
 									</span>
 								{/if}
 							</div>
