@@ -161,18 +161,33 @@
 												{analysis.genre || 'Unknown Genre'} • Professional Analysis
 											</p>
 											<div class="flex items-center space-x-4 mt-1">
-												{#if analysis.overall_score}
-													<span class="text-xs font-medium {analysis.overall_score >= 7 ? 'text-green-600' : analysis.overall_score >= 5 ? 'text-yellow-600' : 'text-red-600'}">
-														⭐ {analysis.overall_score}/10
+												{#if analysis.craftScore}
+													<span class="text-xs font-medium {analysis.craftScore >= 7 ? 'text-green-600' : analysis.craftScore >= 5 ? 'text-yellow-600' : 'text-red-600'}">
+														⭐ {analysis.craftScore}/10
+													</span>
+												{/if}
+												{#if analysis.realityScore}
+													<span class="text-xs font-medium {analysis.realityScore >= 7 ? 'text-purple-600' : analysis.realityScore >= 5 ? 'text-purple-500' : 'text-purple-400'}">
+														🤖 {analysis.realityScore}/10
+													</span>
+												{/if}
+												{#if analysis.writingScore}
+													<span class="text-xs font-medium {analysis.writingScore >= 7 ? 'text-blue-600' : analysis.writingScore >= 5 ? 'text-blue-500' : 'text-blue-400'}">
+														🧠 {analysis.writingScore}/10
+													</span>
+												{/if}
+												{#if analysis.financialScore}
+													<span class="text-xs font-medium {analysis.financialScore >= 7 ? 'text-green-600' : analysis.financialScore >= 5 ? 'text-green-500' : 'text-green-400'}">
+														💰 {analysis.financialScore}/10
 													</span>
 												{/if}
 												{#if analysis.cost}
 													<span class="text-xs text-gray-500">
-														💰 ${analysis.cost.toFixed(4)}
+														${analysis.cost.toFixed(4)}
 													</span>
 												{/if}
 												<span class="text-xs text-gray-400">
-													{formatDate(analysis.created_at)}
+													{formatDate(analysis.createdAt)}
 												</span>
 											</div>
 										</div>

@@ -30,6 +30,9 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				updated_at,
 				ai_model,
 				grok_score,
+				gpt5_score,
+				deepseek_financial_score,
+				perplexity_market_score,
 				openai_score
 			FROM screenplay_analyses 
 			WHERE user_id = ? 
@@ -59,10 +62,13 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 			createdAt: analysis.created_at,
 			updatedAt: analysis.updated_at,
 			aiModel: analysis.ai_model,
-			// Renamed scores to reflect what they actually measure
-			craftScore: analysis.overall_score,      // Story craft & structure
-			realityScore: analysis.grok_score,      // Brutal reality check
-			commercialScore: analysis.openai_score  // Commercial viability
+			// All dynamic scores now available
+			craftScore: analysis.overall_score,           // Story craft & structure
+			realityScore: analysis.grok_score,           // Brutal reality check (dynamic)
+			writingScore: analysis.gpt5_score,           // Writing excellence (dynamic)
+			financialScore: analysis.deepseek_financial_score, // Financial intelligence (dynamic)
+			marketScore: analysis.perplexity_market_score,     // Market opportunity (dynamic)
+			commercialScore: analysis.openai_score       // Commercial viability (dynamic)
 		}));
 
 		return json({
