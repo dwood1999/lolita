@@ -1206,7 +1206,7 @@
 					</div>
 
 					<!-- Source Material Analysis -->
-					{#if analysis.result.source_success && analysis.result.source_has_material}
+					{#if analysis.result.source_success}
 						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
 							<h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
 								<span class="text-indigo-600 mr-2">📚</span>
@@ -1216,33 +1216,106 @@
 								</span>
 							</h3>
 							
-							<div class="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-6">
-								<div class="flex items-start justify-between">
-									<div class="flex-1">
-										<h4 class="text-lg font-semibold text-orange-900 mb-2">
-											Based on {analysis.result.source_type?.replace('_', ' ').toLowerCase() || 'existing material'}
-										</h4>
-										{#if analysis.result.source_title}
-											<p class="text-xl font-bold text-orange-800 mb-2">"{analysis.result.source_title}"</p>
-										{/if}
-										{#if analysis.result.source_author}
-											<p class="text-orange-700">by {analysis.result.source_author}</p>
+							{#if analysis.result.source_has_material}
+								<!-- Has Source Material -->
+								<div class="space-y-6">
+									<!-- Source Material Overview -->
+									<div class="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-6">
+										<div class="flex items-start justify-between">
+											<div class="flex-1">
+												<h4 class="text-lg font-semibold text-orange-900 mb-2">
+													Based on {analysis.result.source_type?.replace('_', ' ').toLowerCase() || 'existing material'}
+												</h4>
+												{#if analysis.result.source_title}
+													<p class="text-xl font-bold text-orange-800 mb-2">"{analysis.result.source_title}"</p>
+												{/if}
+												{#if analysis.result.source_author}
+													<p class="text-orange-700">by {analysis.result.source_author}</p>
+												{/if}
+											</div>
+											<div class="text-right">
+												<div class="text-2xl font-bold text-orange-600">
+													{Math.round((analysis.result.source_confidence_score || 0) * 100)}%
+												</div>
+												<div class="text-xs text-orange-600">Confidence</div>
+											</div>
+										</div>
+										
+										{#if analysis.result.source_description}
+											<div class="mt-4 pt-4 border-t border-orange-200">
+												<p class="text-orange-800 leading-relaxed">{analysis.result.source_description}</p>
+											</div>
 										{/if}
 									</div>
-									<div class="text-right">
-										<div class="text-2xl font-bold text-orange-600">
-											{Math.round((analysis.result.source_confidence_score || 0) * 100)}%
-										</div>
-										<div class="text-xs text-orange-600">Confidence</div>
+
+									<!-- Commercial & Legal Implications -->
+									<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+										{#if analysis.result.source_commercial_implications}
+											<div class="bg-green-50 border border-green-200 rounded-lg p-4">
+												<h5 class="font-semibold text-green-900 mb-3 flex items-center">
+													<span class="text-green-600 mr-2">💰</span>
+													Commercial Implications
+												</h5>
+												<p class="text-green-800 text-sm leading-relaxed">{analysis.result.source_commercial_implications}</p>
+											</div>
+										{/if}
+
+										{#if analysis.result.source_legal_considerations}
+											<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+												<h5 class="font-semibold text-blue-900 mb-3 flex items-center">
+													<span class="text-blue-600 mr-2">⚖️</span>
+													Legal Considerations
+												</h5>
+												<p class="text-blue-800 text-sm leading-relaxed">{analysis.result.source_legal_considerations}</p>
+											</div>
+										{/if}
+									</div>
+
+									<!-- Market Advantages & Adaptation Notes -->
+									<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+										{#if analysis.result.source_market_advantages}
+											<div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+												<h5 class="font-semibold text-purple-900 mb-3 flex items-center">
+													<span class="text-purple-600 mr-2">📈</span>
+													Market Advantages
+												</h5>
+												<p class="text-purple-800 text-sm leading-relaxed">{analysis.result.source_market_advantages}</p>
+											</div>
+										{/if}
+
+										{#if analysis.result.source_adaptation_notes}
+											<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+												<h5 class="font-semibold text-yellow-900 mb-3 flex items-center">
+													<span class="text-yellow-600 mr-2">📝</span>
+													Adaptation Notes
+												</h5>
+												<p class="text-yellow-800 text-sm leading-relaxed">{analysis.result.source_adaptation_notes}</p>
+											</div>
+										{/if}
 									</div>
 								</div>
-								
-								{#if analysis.result.source_description}
-									<div class="mt-4 pt-4 border-t border-orange-200">
-										<p class="text-orange-800 leading-relaxed">{analysis.result.source_description}</p>
+							{:else}
+								<!-- Original Work -->
+								<div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6">
+									<div class="flex items-center justify-between">
+										<div class="flex items-center">
+											<div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mr-4">
+												<span class="text-green-600 text-xl">✨</span>
+											</div>
+											<div>
+												<h4 class="text-lg font-semibold text-green-900">Original Work</h4>
+												<p class="text-green-700">This appears to be an original screenplay, not based on existing source material.</p>
+											</div>
+										</div>
+										<div class="text-right">
+											<div class="text-2xl font-bold text-green-600">
+												{Math.round((analysis.result.source_confidence_score || 0) * 100)}%
+											</div>
+											<div class="text-xs text-green-600">Confidence</div>
+										</div>
 									</div>
-								{/if}
-							</div>
+								</div>
+							{/if}
 						</div>
 					{/if}
 				</div>
