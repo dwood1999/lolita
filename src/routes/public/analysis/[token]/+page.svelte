@@ -9,7 +9,7 @@
 
 	const shareToken = $page.params.token;
 
-	// Simple navigation tabs
+	// Complete navigation tabs (matching private analysis)
 	const allTabs = [
 		{ id: 'dashboard', label: 'Executive Dashboard', icon: '📈' },
 		{ id: 'story', label: 'Story & Craft', icon: '📖' },
@@ -20,9 +20,9 @@
 		{ id: 'market', label: 'Market Intelligence', icon: '📊' },
 		{ id: 'producer', label: 'Producer Dashboard', icon: '🎬' },
 		{ id: 'production', label: 'Production Planning', icon: '🎭' },
-		{ id: 'posters', label: 'Movie Posters', icon: '🎨' },
+		{ id: 'media', label: 'Media Assets', icon: '🎨' },
 		{ id: 'casting', label: 'Casting Vision', icon: '🎭' },
-		{ id: 'media', label: 'Media Strategy', icon: '📺' }
+		{ id: 'improvements', label: 'Enhancement Notes', icon: '💡' }
 	];
 
 	onMount(async () => {
@@ -176,6 +176,30 @@
 		};
 	}
 
+	// Helper function to check if we have DeepSeek financial data
+	function hasDeepSeekData(): boolean {
+		return !!(analysis?.result?.deepseek_financial_score || analysis?.result?.deepseek_box_office_prediction);
+	}
+
+	// Helper function to check if we have Perplexity market data
+	function hasPerplexityData(): boolean {
+		return !!(analysis?.result?.perplexity_market_score || analysis?.result?.perplexity_market_trends);
+	}
+
+	// Helper function to get controversy analysis
+	function getControversy(): any {
+		const v = analysis?.result?.grok_controversy_analysis;
+		if (!v) return {};
+		if (typeof v === 'string') {
+			try {
+				return JSON.parse(v);
+			} catch {
+				return {};
+			}
+		}
+		return v;
+	}
+
 </script>
 
 <svelte:head>
@@ -264,6 +288,45 @@
 								</div>
 							</div>
 						{/if}
+
+						<!-- Financial Score -->
+						{#if analysis.result.deepseek_financial_score}
+							<div class="text-center">
+								<div class="text-2xl font-bold text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+									{analysis.result.deepseek_financial_score}/10
+								</div>
+								<div class="text-xs text-gray-500 mt-1">Financial Score</div>
+								<div class="inline-flex items-center px-2 py-1 rounded text-xs font-medium border text-green-600 bg-green-50 border-green-200 mt-1">
+									{analysis.result.deepseek_recommendation || 'Investment Analysis'}
+								</div>
+							</div>
+						{/if}
+
+						<!-- Market Score -->
+						{#if analysis.result.perplexity_market_score}
+							<div class="text-center">
+								<div class="text-2xl font-bold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-lg">
+									{analysis.result.perplexity_market_score}/10
+								</div>
+								<div class="text-xs text-gray-500 mt-1">Market Score</div>
+								<div class="inline-flex items-center px-2 py-1 rounded text-xs font-medium border text-indigo-600 bg-indigo-50 border-indigo-200 mt-1">
+									{analysis.result.perplexity_recommendation || 'Market Research'}
+								</div>
+							</div>
+						{/if}
+
+						<!-- OpenAI Score -->
+						{#if analysis.result.openai_score}
+							<div class="text-center">
+								<div class="text-2xl font-bold text-orange-600 bg-orange-50 px-3 py-2 rounded-lg">
+									{analysis.result.openai_score}/10
+								</div>
+								<div class="text-xs text-gray-500 mt-1">Commercial Score</div>
+								<div class="inline-flex items-center px-2 py-1 rounded text-xs font-medium border text-orange-600 bg-orange-50 border-orange-200 mt-1">
+									{analysis.result.openai_recommendation || 'Commercial Analysis'}
+								</div>
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>
@@ -277,7 +340,9 @@
 						{@const isActive = activeTab === tab.id}
 						{@const score = tab.id === 'dashboard' ? analysis.result.overall_score : 
 										tab.id === 'grok' ? analysis.result.grok_score :
-										tab.id === 'gpt5' ? analysis.result.gpt5_score : null}
+										tab.id === 'gpt5' ? analysis.result.gpt5_score :
+										tab.id === 'financial' ? analysis.result.deepseek_financial_score :
+										tab.id === 'market' ? analysis.result.perplexity_market_score : null}
 						
 						<button
 							on:click={() => switchTab(tab.id)}
@@ -516,46 +581,237 @@
 			<!-- Financial Intelligence Tab -->
 			{:else if activeTab === 'financial'}
 				<div class="space-y-8">
-					<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-						<!-- Commercial Viability -->
-						{#if analysis.result.commercial_viability}
-							<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:col-span-2">
-								<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-									<span class="text-green-600 mr-2">💰</span>
-									Commercial Viability
-								</h3>
-								<div class="prose max-w-none">
-									<p class="text-gray-700">{analysis.result.commercial_viability}</p>
+					{#if hasDeepSeekData()}
+						<!-- Header with AI Badge -->
+						<div class="bg-gradient-to-r from-emerald-500 via-blue-600 to-purple-600 rounded-xl p-1 shadow-lg">
+							<div class="bg-white rounded-lg p-6">
+								<div class="flex items-center justify-between">
+									<div class="flex items-center">
+										<div class="w-12 h-12 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-full flex items-center justify-center mr-4">
+											<span class="text-white text-xl">🤖</span>
+										</div>
+										<div>
+											<h2 class="text-2xl font-bold text-gray-900">DeepSeek Financial Intelligence</h2>
+											<p class="text-gray-600">AI-Powered Investment & ROI Analysis</p>
+										</div>
+									</div>
+									<div class="text-xs bg-gradient-to-r from-emerald-100 to-blue-100 text-emerald-800 px-3 py-1 rounded-full font-medium">
+										Advanced AI Analysis
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Executive Summary Section -->
+						{#if analysis.result.deepseek_financial_score}
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-green-50 to-blue-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-xl font-bold text-gray-900 flex items-center">
+										<span class="text-green-600 mr-2">📊</span>
+										Investment Analysis Summary
+										<span class="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">DeepSeek AI</span>
+									</h3>
+								</div>
+								<div class="p-6">
+									<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+										<!-- Score Display -->
+										<div class="lg:col-span-1">
+											<div class="flex-shrink-0">
+												<div class="w-20 h-20 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center">
+													<span class="text-white text-2xl font-bold">{analysis.result.deepseek_financial_score}</span>
+												</div>
+											</div>
+											<div class="mt-4">
+												<div class="w-full bg-gray-200 rounded-full h-3 mb-3">
+													<div class="bg-gradient-to-r from-green-400 to-blue-500 h-3 rounded-full transition-all duration-500" 
+														 style="width: {(analysis.result.deepseek_financial_score / 10) * 100}%"></div>
+												</div>
+												<p class="text-gray-600 text-sm leading-relaxed">
+													{analysis.result.deepseek_recommendation || 'Investment analysis complete. This score reflects overall financial viability based on market analysis, risk assessment, and revenue projections.'}
+												</p>
+											</div>
+										</div>
+
+										<!-- Quick Stats -->
+										<div class="lg:col-span-2 space-y-4">
+											{#if analysis.result.deepseek_confidence}
+												<div class="bg-gray-50 rounded-lg p-4">
+													<div class="text-sm font-medium text-gray-700">Confidence Level</div>
+													<div class="text-2xl font-bold text-gray-900">{Math.round(analysis.result.deepseek_confidence * 100)}%</div>
+												</div>
+											{/if}
+											
+											<!-- Basic Financial Info -->
+											<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+												{#if analysis.result.commercial_viability}
+													<div class="bg-blue-50 rounded-lg p-4">
+														<div class="text-sm font-medium text-blue-800 mb-2">Commercial Viability</div>
+														<div class="text-sm text-blue-700">{analysis.result.commercial_viability}</div>
+													</div>
+												{/if}
+												{#if analysis.result.target_audience}
+													<div class="bg-purple-50 rounded-lg p-4">
+														<div class="text-sm font-medium text-purple-800 mb-2">Target Audience</div>
+														<div class="text-sm text-purple-700">{analysis.result.target_audience}</div>
+													</div>
+												{/if}
+											</div>
+										</div>
+									</div>
 								</div>
 							</div>
 						{/if}
 
-						<!-- Target Audience -->
-						{#if analysis.result.target_audience}
-							<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-								<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-									<span class="text-pink-600 mr-2">🎯</span>
-									Target Audience
-								</h3>
-								<div class="prose max-w-none">
-									<p class="text-gray-700">{analysis.result.target_audience}</p>
+						<!-- Box Office Predictions -->
+						{#if analysis.result.deepseek_box_office_prediction}
+							{@const prediction = typeof analysis.result.deepseek_box_office_prediction === 'string' 
+								? JSON.parse(analysis.result.deepseek_box_office_prediction) 
+								: analysis.result.deepseek_box_office_prediction}
+							
+							{#if prediction}
+								<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+									<div class="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-gray-200">
+										<h3 class="text-xl font-bold text-gray-900 flex items-center">
+											<span class="text-purple-600 mr-2">🎬</span>
+											Box Office Projections
+											<span class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">AI Predicted</span>
+										</h3>
+									</div>
+									<div class="p-6 space-y-6">
+										{#if prediction.domestic_box_office}
+											<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+												<div class="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+													<div class="text-2xl font-bold text-green-600 mb-1">
+														${(prediction.domestic_box_office / 1000000).toFixed(1)}M
+													</div>
+													<div class="text-sm font-medium text-green-800">Domestic Box Office</div>
+													<div class="text-xs text-green-600 mt-1">US & Canada</div>
+												</div>
+												
+												{#if prediction.international_box_office}
+													<div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+														<div class="text-2xl font-bold text-blue-600 mb-1">
+															${(prediction.international_box_office / 1000000).toFixed(1)}M
+														</div>
+														<div class="text-sm font-medium text-blue-800">International</div>
+														<div class="text-xs text-blue-600 mt-1">Worldwide excluding US/CA</div>
+													</div>
+												{/if}
+												
+												{#if prediction.total_box_office}
+													<div class="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
+														<div class="text-2xl font-bold text-purple-600 mb-1">
+															${(prediction.total_box_office / 1000000).toFixed(1)}M
+														</div>
+														<div class="text-sm font-medium text-purple-800">Total Worldwide</div>
+														<div class="text-xs text-purple-600 mt-1">Combined revenue</div>
+													</div>
+												{/if}
+											</div>
+										{/if}
+									</div>
 								</div>
-							</div>
+							{/if}
 						{/if}
 
-						<!-- Comparable Films -->
-						{#if analysis.result.comparable_films}
-							<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:col-span-2 lg:col-span-3">
-								<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-									<span class="text-blue-600 mr-2">🎥</span>
-									Comparable Films
-								</h3>
-								<div class="prose max-w-none">
-									<p class="text-gray-700">{analysis.result.comparable_films}</p>
+						<!-- ROI Analysis -->
+						{#if analysis.result.deepseek_roi_analysis}
+							{@const roi = typeof analysis.result.deepseek_roi_analysis === 'string' 
+								? JSON.parse(analysis.result.deepseek_roi_analysis) 
+								: analysis.result.deepseek_roi_analysis}
+							
+							{#if roi}
+								<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+									<div class="bg-gradient-to-r from-emerald-50 to-teal-50 px-6 py-4 border-b border-gray-200">
+										<h3 class="text-xl font-bold text-gray-900 flex items-center">
+											<span class="text-emerald-600 mr-2">📈</span>
+											Return on Investment Analysis
+											<span class="ml-2 text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">ROI Metrics</span>
+										</h3>
+									</div>
+									<div class="p-6">
+										<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+											{#if roi.expected_roi}
+												<div class="text-center p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+													<div class="text-2xl font-bold text-emerald-600 mb-1">
+														{(roi.expected_roi * 100).toFixed(1)}%
+													</div>
+													<div class="text-sm font-medium text-emerald-800">Expected ROI</div>
+												</div>
+											{/if}
+											{#if roi.break_even_point}
+												<div class="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+													<div class="text-2xl font-bold text-blue-600 mb-1">
+														${(roi.break_even_point / 1000000).toFixed(1)}M
+													</div>
+													<div class="text-sm font-medium text-blue-800">Break Even</div>
+												</div>
+											{/if}
+											{#if roi.profit_margin}
+												<div class="text-center p-4 bg-purple-50 rounded-lg border border-purple-200">
+													<div class="text-2xl font-bold text-purple-600 mb-1">
+														{(roi.profit_margin * 100).toFixed(1)}%
+													</div>
+													<div class="text-sm font-medium text-purple-800">Profit Margin</div>
+												</div>
+											{/if}
+											{#if roi.risk_level}
+												<div class="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
+													<div class="text-lg font-bold text-orange-600 mb-1 capitalize">
+														{roi.risk_level}
+													</div>
+													<div class="text-sm font-medium text-orange-800">Risk Level</div>
+												</div>
+											{/if}
+										</div>
+									</div>
 								</div>
-							</div>
+							{/if}
 						{/if}
-					</div>
+
+					{:else}
+						<!-- Fallback to basic financial info -->
+						<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+							<!-- Commercial Viability -->
+							{#if analysis.result.commercial_viability}
+								<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:col-span-2">
+									<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+										<span class="text-green-600 mr-2">💰</span>
+										Commercial Viability
+									</h3>
+									<div class="prose max-w-none">
+										<p class="text-gray-700">{analysis.result.commercial_viability}</p>
+									</div>
+								</div>
+							{/if}
+
+							<!-- Target Audience -->
+							{#if analysis.result.target_audience}
+								<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+									<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+										<span class="text-pink-600 mr-2">🎯</span>
+										Target Audience
+									</h3>
+									<div class="prose max-w-none">
+										<p class="text-gray-700">{analysis.result.target_audience}</p>
+									</div>
+								</div>
+							{/if}
+
+							<!-- Comparable Films -->
+							{#if analysis.result.comparable_films}
+								<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:col-span-2 lg:col-span-3">
+									<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+										<span class="text-blue-600 mr-2">🎥</span>
+										Comparable Films
+									</h3>
+									<div class="prose max-w-none">
+										<p class="text-gray-700">{analysis.result.comparable_films}</p>
+									</div>
+								</div>
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 			<!-- Grok Reality Check Tab -->
@@ -694,6 +950,63 @@
 										</div>
 										<div class="text-sm text-green-700 leading-relaxed">
 											{getBrutal().production_reality || 'Assessment not available'}
+										</div>
+									</div>
+								</div>
+							</div>
+						{/if}
+						
+						<!-- Controversy Scanner -->
+						{#if analysis.result.grok_controversy_analysis}
+							<div class="bg-white rounded-lg shadow-sm border border-amber-200 p-6">
+								<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+									<span class="text-amber-600 mr-2">⚠️</span>
+									Controversy Scanner
+									<span class="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">Risk Assessment</span>
+								</h3>
+								
+								<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+									<!-- Political Sensitivity -->
+									<div class="p-4 bg-red-50 rounded-lg border border-red-200">
+										<div class="text-sm font-medium text-red-800 mb-2 flex items-center">
+											<span class="mr-1">🏛️</span>
+											Political Sensitivity
+										</div>
+										<div class="text-sm text-red-700 leading-relaxed">
+											{getControversy().political_sensitivity || 'No significant political content detected'}
+										</div>
+									</div>
+									
+									<!-- Cultural Sensitivity -->
+									<div class="p-4 bg-orange-50 rounded-lg border border-orange-200">
+										<div class="text-sm font-medium text-orange-800 mb-2 flex items-center">
+											<span class="mr-1">🌍</span>
+											Cultural Sensitivity
+										</div>
+										<div class="text-sm text-orange-700 leading-relaxed">
+											{getControversy().cultural_sensitivity || 'No major cultural concerns identified'}
+										</div>
+									</div>
+									
+									<!-- Social Media Risk -->
+									<div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+										<div class="text-sm font-medium text-yellow-800 mb-2 flex items-center">
+											<span class="mr-1">📱</span>
+											Social Media Risk
+										</div>
+										<div class="text-sm text-yellow-700 leading-relaxed">
+											{getControversy().social_media_risk || 'Low risk of social media backlash'}
+										</div>
+									</div>
+									
+									<!-- Cancel Culture Risk -->
+									<div class="p-4 bg-pink-50 rounded-lg border border-pink-200">
+										<div class="text-sm font-medium text-pink-800 mb-2 flex items-center">
+											<span class="mr-1">🚫</span>
+											Cancel Culture Risk
+										</div>
+										<div class="text-sm text-pink-700 leading-relaxed">
+											{getControversy().cancel_culture_risk || 'Minimal cancel culture exposure'}
 										</div>
 									</div>
 								</div>
@@ -936,34 +1249,127 @@
 
 			<!-- Market Intelligence Tab -->
 			{:else if activeTab === 'market'}
-				<div class="space-y-8">
-					<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-						<!-- Commercial Viability -->
-						{#if analysis.result.commercial_viability}
-							<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-								<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-									<span class="text-green-600 mr-2">💰</span>
-									Commercial Viability
-								</h3>
-								<div class="prose max-w-none">
-									<p class="text-gray-700">{analysis.result.commercial_viability}</p>
+				<div class="space-y-6">
+					{#if hasPerplexityData()}
+						<!-- Perplexity Market Research -->
+						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+							<h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
+								<span class="text-purple-600 mr-2">🔍</span>
+								Perplexity Market Research
+								<span class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">AI Market Intelligence</span>
+							</h3>
+							
+							<!-- Market Score Overview -->
+							{#if analysis.result.perplexity_market_score}
+								<div class="mb-6 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
+									<div class="flex items-center justify-between">
+										<div>
+											<h4 class="text-lg font-semibold text-gray-900 mb-2">Market Opportunity Assessment</h4>
+											<p class="text-gray-600">{analysis.result.perplexity_recommendation || 'Market research complete'}</p>
+										</div>
+										<div class="text-center">
+											<div class="text-3xl font-bold text-purple-600">
+												{analysis.result.perplexity_market_score}/10
+											</div>
+											<div class="text-sm text-gray-500">Market Score</div>
+										</div>
+									</div>
 								</div>
-							</div>
-						{/if}
+							{/if}
+							
+							<!-- Market Trends -->
+							{#if analysis.result.perplexity_market_trends}
+								{@const trends = typeof analysis.result.perplexity_market_trends === 'string' 
+									? JSON.parse(analysis.result.perplexity_market_trends) 
+									: analysis.result.perplexity_market_trends}
+								
+								{#if trends && trends.content}
+									<div class="mb-6">
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-blue-600 mr-2">📈</span>
+											Current Market Trends
+										</h4>
+										<div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+											<div class="prose max-w-none">
+												<p class="text-blue-900 leading-relaxed">{trends.content}</p>
+											</div>
+										</div>
+									</div>
+								{/if}
+							{/if}
+							
+							<!-- Competitive Analysis -->
+							{#if analysis.result.perplexity_competitive_analysis}
+								{@const competitive = typeof analysis.result.perplexity_competitive_analysis === 'string' 
+									? JSON.parse(analysis.result.perplexity_competitive_analysis) 
+									: analysis.result.perplexity_competitive_analysis}
+								
+								{#if competitive && competitive.content}
+									<div class="mb-6">
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-red-600 mr-2">⚔️</span>
+											Competitive Landscape
+										</h4>
+										<div class="bg-red-50 rounded-lg p-4 border border-red-200">
+											<div class="prose max-w-none">
+												<p class="text-red-900 leading-relaxed">{competitive.content}</p>
+											</div>
+										</div>
+									</div>
+								{/if}
+							{/if}
+							
+							<!-- Audience Demographics -->
+							{#if analysis.result.perplexity_audience_demographics}
+								{@const demographics = typeof analysis.result.perplexity_audience_demographics === 'string' 
+									? JSON.parse(analysis.result.perplexity_audience_demographics) 
+									: analysis.result.perplexity_audience_demographics}
+								
+								{#if demographics && demographics.content}
+									<div>
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-green-600 mr-2">👥</span>
+											Target Demographics
+										</h4>
+										<div class="bg-green-50 rounded-lg p-4 border border-green-200">
+											<div class="prose max-w-none">
+												<p class="text-green-900 leading-relaxed">{demographics.content}</p>
+											</div>
+										</div>
+									</div>
+								{/if}
+							{/if}
+						</div>
+					{:else}
+						<!-- Fallback to basic market info -->
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+							<!-- Commercial Viability -->
+							{#if analysis.result.commercial_viability}
+								<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+									<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+										<span class="text-green-600 mr-2">💰</span>
+										Commercial Viability
+									</h3>
+									<div class="prose max-w-none">
+										<p class="text-gray-700">{analysis.result.commercial_viability}</p>
+									</div>
+								</div>
+							{/if}
 
-						<!-- Target Audience -->
-						{#if analysis.result.target_audience}
-							<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-								<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-									<span class="text-pink-600 mr-2">🎯</span>
-									Target Audience
-								</h3>
-								<div class="prose max-w-none">
-									<p class="text-gray-700">{analysis.result.target_audience}</p>
+							<!-- Target Audience -->
+							{#if analysis.result.target_audience}
+								<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+									<h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+										<span class="text-pink-600 mr-2">🎯</span>
+										Target Audience
+									</h3>
+									<div class="prose max-w-none">
+										<p class="text-gray-700">{analysis.result.target_audience}</p>
+									</div>
 								</div>
-							</div>
-						{/if}
-					</div>
+							{/if}
+						</div>
+					{/if}
 				</div>
 
 			<!-- Producer Dashboard Tab -->
@@ -1001,31 +1407,269 @@
 			<!-- Production Planning Tab -->
 			{:else if activeTab === 'production'}
 				<div class="space-y-8">
-					<div class="text-center py-12">
-						<div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-							<span class="text-2xl">🎭</span>
-						</div>
-						<h3 class="text-xl font-semibold text-gray-900 mb-2">Production Planning</h3>
-						<p class="text-gray-600 mb-6">Detailed production planning features are available in the full platform.</p>
-						<a href="/auth/register" class="inline-flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg">
-							Access Full Platform
-						</a>
+					<!-- Director Recommendation -->
+					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+						<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+							<span class="text-purple-600 mr-2">🎥</span>
+							Director Recommendation
+						</h3>
+						{#if analysis.result.director_recommendation}
+							<div class="bg-purple-50 border-l-4 border-purple-400 p-6 rounded-md">
+								<div class="flex items-start">
+									<div class="flex-shrink-0">
+										<span class="text-purple-600 text-2xl">🎬</span>
+									</div>
+									<div class="ml-4">
+										<h4 class="text-lg font-semibold text-purple-900 mb-3">Ideal Director Vision</h4>
+										<div class="text-purple-800 whitespace-pre-line leading-relaxed">
+											{analysis.result.director_recommendation}
+										</div>
+									</div>
+								</div>
+							</div>
+						{:else}
+							<p class="text-gray-500 italic">Director recommendations will be available in enhanced results.</p>
+						{/if}
 					</div>
+
+					<!-- Casting Vision -->
+					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+						<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+							<span class="text-red-600 mr-2">🌟</span>
+							Casting Vision
+						</h3>
+						{#if parseJsonField(analysis.result.casting_vision || analysis.result.casting_suggestions).length > 0}
+							<div class="space-y-6">
+								{#each parseJsonField(analysis.result.casting_vision || analysis.result.casting_suggestions) as casting}
+									<div class="border-b border-gray-200 pb-6 last:border-0">
+										<h4 class="font-semibold text-gray-900 mb-3 text-lg">{casting.character}</h4>
+										{#if casting.reasoning}
+											<p class="text-gray-600 mb-3 italic">{casting.reasoning}</p>
+										{/if}
+										<div class="flex flex-wrap gap-2">
+											{#each (casting.actors || []) as actor}
+												<span class="inline-flex items-center px-3 py-2 rounded-lg text-sm bg-red-50 text-red-800 border border-red-200">
+													<span class="mr-1">🎭</span>
+													{actor}
+												</span>
+											{/each}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-gray-500 italic">Casting recommendations will be available in enhanced results.</p>
+						{/if}
+					</div>
+
+					<!-- Commercial Viability for Production -->
+					{#if analysis.result.commercial_viability}
+						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+							<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+								<span class="text-green-600 mr-2">💰</span>
+								Production Viability
+							</h3>
+							<div class="bg-green-50 border-l-4 border-green-400 p-6 rounded-md">
+								<div class="flex items-start">
+									<div class="flex-shrink-0">
+										<span class="text-green-600 text-2xl">💼</span>
+									</div>
+									<div class="ml-4">
+										<h4 class="text-lg font-semibold text-green-900 mb-3">Commercial Assessment</h4>
+										<div class="text-green-800 leading-relaxed">
+											{analysis.result.commercial_viability}
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					{/if}
 				</div>
 
-			<!-- Movie Posters Tab -->
-			{:else if activeTab === 'posters'}
-				<div class="space-y-8">
-					<div class="text-center py-12">
-						<div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-							<span class="text-2xl">🎨</span>
+			<!-- Media Assets Tab -->
+			{:else if activeTab === 'media'}
+				<div class="space-y-6">
+					<!-- Best Poster Collection Section -->
+					{#if analysis.result.poster_best_url}
+						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+							<h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
+								<span class="text-purple-600 mr-2">🏆</span>
+								Best Movie Poster
+								<span class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">{analysis.result.poster_best_source || 'AI Generated'}</span>
+								{#if analysis.result.poster_success_count > 1}
+									<span class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">{analysis.result.poster_success_count} variations</span>
+								{/if}
+							</h3>
+							
+							<div class="flex justify-center">
+								<div class="space-y-4">
+									<div class="relative group">
+										<img 
+											src={analysis.result.poster_best_url} 
+											alt="Best movie poster for {analysis.result.title}"
+											class="w-full max-w-md mx-auto rounded-lg shadow-lg border border-gray-200 group-hover:shadow-xl transition-shadow duration-300"
+											crossorigin="anonymous"
+											on:error={(e) => {
+												console.error('Best poster image failed to load:', e);
+												const target = e.target as HTMLImageElement;
+												if (target) {
+													target.style.backgroundColor = '#f3f4f6';
+													target.style.border = '2px dashed #d1d5db';
+													target.alt = 'Poster image failed to load - click "View Full Size" to access directly';
+												}
+											}}
+										/>
+									</div>
+									<div class="text-center">
+										<a 
+											href={analysis.result.poster_best_url} 
+											target="_blank" 
+											class="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-sm"
+										>
+											<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+											</svg>
+											View Full Size
+										</a>
+									</div>
+								</div>
+							</div>
 						</div>
-						<h3 class="text-xl font-semibold text-gray-900 mb-2">AI-Generated Movie Posters</h3>
-						<p class="text-gray-600 mb-6">Create stunning movie posters with AI visualization tools.</p>
-						<a href="/auth/register" class="inline-flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg">
-							Create Posters
-						</a>
-					</div>
+					{/if}
+
+					<!-- OpenAI Generated Posters -->
+					{#if analysis.result.openai_movie_poster_url}
+						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+							<h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
+								<span class="text-green-600 mr-2">🤖</span>
+								OpenAI Generated Poster
+								<span class="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">DALL-E 3</span>
+							</h3>
+							
+							<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+								<div class="space-y-4">
+									<div class="relative group">
+										<img 
+											src={analysis.result.openai_movie_poster_url} 
+											alt="OpenAI generated movie poster for {analysis.result.title}"
+											class="w-full rounded-lg shadow-lg border border-gray-200 group-hover:shadow-xl transition-shadow duration-300"
+											crossorigin="anonymous"
+											on:error={(e) => {
+												console.error('OpenAI poster image failed to load:', e);
+												const target = e.target as HTMLImageElement;
+												if (target) {
+													target.style.backgroundColor = '#f3f4f6';
+													target.style.border = '2px dashed #d1d5db';
+													target.alt = 'OpenAI poster image failed to load - click "View Full Size" to access directly';
+												}
+											}}
+										/>
+									</div>
+									<div class="text-center">
+										<a 
+											href={analysis.result.openai_movie_poster_url} 
+											target="_blank" 
+											class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm"
+										>
+											<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+											</svg>
+											View Full Size
+										</a>
+									</div>
+								</div>
+								
+								{#if analysis.result.openai_poster_prompt}
+									<div class="space-y-4">
+										<h4 class="text-lg font-semibold text-gray-900 flex items-center">
+											<span class="text-blue-600 mr-2">💭</span>
+											AI Prompt Used
+										</h4>
+										<div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+											<p class="text-gray-700 text-sm leading-relaxed font-mono">
+												{analysis.result.openai_poster_prompt}
+											</p>
+										</div>
+									</div>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
+					<!-- PiAPI Generated Posters -->
+					{#if analysis.result.piapi_poster_url}
+						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+							<h3 class="text-xl font-bold text-gray-900 mb-6 flex items-center">
+								<span class="text-blue-600 mr-2">🎨</span>
+								PiAPI Generated Poster
+								<span class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">Alternative AI</span>
+							</h3>
+							
+							<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+								<div class="space-y-4">
+									<div class="relative group">
+										<img 
+											src={analysis.result.piapi_poster_url} 
+											alt="PiAPI generated movie poster for {analysis.result.title}"
+											class="w-full rounded-lg shadow-lg border border-gray-200 group-hover:shadow-xl transition-shadow duration-300"
+											crossorigin="anonymous"
+											on:error={(e) => {
+												console.error('PiAPI poster image failed to load:', e);
+												const target = e.target as HTMLImageElement;
+												if (target) {
+													target.style.backgroundColor = '#f3f4f6';
+													target.style.border = '2px dashed #d1d5db';
+													target.alt = 'PiAPI poster image failed to load - click "View Full Size" to access directly';
+												}
+											}}
+										/>
+									</div>
+									<div class="text-center">
+										<a 
+											href={analysis.result.piapi_poster_url} 
+											target="_blank" 
+											class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+										>
+											<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+											</svg>
+											View Full Size
+										</a>
+									</div>
+								</div>
+								
+								{#if analysis.result.piapi_poster_prompt}
+									<div class="space-y-4">
+										<h4 class="text-lg font-semibold text-gray-900 flex items-center">
+											<span class="text-purple-600 mr-2">💭</span>
+											AI Prompt Used
+										</h4>
+										<div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+											<p class="text-gray-700 text-sm leading-relaxed font-mono">
+												{analysis.result.piapi_poster_prompt}
+											</p>
+										</div>
+									</div>
+								{/if}
+							</div>
+						</div>
+					{/if}
+					
+					<!-- No Posters Available -->
+					{#if !analysis.result.openai_movie_poster_url && !analysis.result.openai_poster_prompt && !analysis.result.piapi_poster_url && !analysis.result.piapi_poster_prompt && !analysis.result.poster_best_url}
+						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+							<div class="text-center py-12">
+								<svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+								</svg>
+								<h3 class="text-lg font-medium text-gray-900 mb-2">No Media Available</h3>
+								<p class="text-gray-500 mb-6">Movie poster and other media will be generated during analysis.</p>
+								<a href="/auth/register" class="inline-flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg">
+									Get Full Analysis
+								</a>
+							</div>
+						</div>
+					{/if}
 				</div>
 
 			<!-- Casting Vision Tab -->
@@ -1079,6 +1723,81 @@
 						<a href="/auth/register" class="inline-flex items-center justify-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg">
 							Access Full Analysis
 						</a>
+					</div>
+				</div>
+
+			<!-- Enhancement Notes Tab -->
+			{:else if activeTab === 'improvements'}
+				<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+					<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+						<span class="text-yellow-600 mr-2">💡</span>
+						Improvement Strategies
+						<span class="ml-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">Enhancement Recommendations</span>
+					</h3>
+					
+					<div class="space-y-6">
+						<!-- Improvement Strategies -->
+						{#if analysis.result.improvement_strategies}
+							<div class="bg-yellow-50 rounded-lg p-6 border border-yellow-200">
+								<h4 class="text-lg font-semibold text-yellow-900 mb-4 flex items-center">
+									<span class="text-yellow-600 mr-2">🎯</span>
+									Strategic Improvements
+								</h4>
+								<div class="prose max-w-none">
+									<p class="text-yellow-800 leading-relaxed">{analysis.result.improvement_strategies}</p>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Suggestions -->
+						{#if analysis.result.suggestions}
+							<div class="bg-blue-50 rounded-lg p-6 border border-blue-200">
+								<h4 class="text-lg font-semibold text-blue-900 mb-4 flex items-center">
+									<span class="text-blue-600 mr-2">💭</span>
+									Professional Suggestions
+								</h4>
+								<div class="prose max-w-none">
+									<p class="text-blue-800 leading-relaxed">{analysis.result.suggestions}</p>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Key Weaknesses -->
+						{#if analysis.result.key_weaknesses}
+							<div class="bg-red-50 rounded-lg p-6 border border-red-200">
+								<h4 class="text-lg font-semibold text-red-900 mb-4 flex items-center">
+									<span class="text-red-600 mr-2">⚠️</span>
+									Areas Requiring Attention
+								</h4>
+								<div class="prose max-w-none">
+									<p class="text-red-800 leading-relaxed">{analysis.result.key_weaknesses}</p>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Craft Evaluation -->
+						{#if analysis.result.craft_evaluation}
+							<div class="bg-purple-50 rounded-lg p-6 border border-purple-200">
+								<h4 class="text-lg font-semibold text-purple-900 mb-4 flex items-center">
+									<span class="text-purple-600 mr-2">✍️</span>
+									Craft Assessment
+								</h4>
+								<div class="prose max-w-none">
+									<p class="text-purple-800 leading-relaxed">{analysis.result.craft_evaluation}</p>
+								</div>
+							</div>
+						{/if}
+
+						<!-- No Improvements Available -->
+						{#if !analysis.result.improvement_strategies && !analysis.result.suggestions && !analysis.result.key_weaknesses && !analysis.result.craft_evaluation}
+							<div class="text-center py-12">
+								<div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+									<span class="text-2xl">💡</span>
+								</div>
+								<h3 class="text-xl font-semibold text-gray-900 mb-2">Enhancement Notes Not Available</h3>
+								<p class="text-gray-600">Detailed improvement recommendations are generated during comprehensive analysis.</p>
+							</div>
+						{/if}
 					</div>
 				</div>
 
