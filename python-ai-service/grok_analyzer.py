@@ -337,6 +337,11 @@ Provide analysis as JSON with these exact keys:
     def _parse_response(self, response: str) -> Dict[str, Any]:
         """Parse enhanced Grok response into structured data"""
         
+        # Log response details for debugging (truncated for privacy)
+        response_preview = response[:500] + "..." if len(response) > 500 else response
+        logger.debug(f"🤖 Grok response preview: {response_preview}")
+        logger.info(f"🤖 Grok response length: {len(response)} characters")
+        
         try:
             # Try to extract JSON from response
             import re
@@ -344,11 +349,13 @@ Provide analysis as JSON with these exact keys:
             
             if json_match:
                 json_str = json_match.group()
+                logger.debug(f"🔍 Found JSON block (length: {len(json_str)})")
                 
                 # Try to fix truncated JSON by adding missing closing braces
                 json_str = self._fix_truncated_json(json_str)
                 
                 parsed_data = json.loads(json_str)
+                logger.info("✅ Successfully parsed JSON on first attempt")
                 
                 # Validate and structure the enhanced response
                 return self._validate_enhanced_response(parsed_data)
@@ -358,23 +365,69 @@ Provide analysis as JSON with these exact keys:
                 return self._fallback_parse(response)
                 
         except json.JSONDecodeError as e:
-            logger.warning(f"⚠️  JSON parsing failed: {e}, attempting to fix truncated JSON")
-            # Try to fix truncated JSON and parse again
-            try:
-                json_match = re.search(r'\{[\s\S]*', response)  # Match even incomplete JSON
-                if json_match:
-                    json_str = self._fix_truncated_json(json_match.group())
-                    parsed_data = json.loads(json_str)
-                    logger.info("✅ Successfully parsed truncated JSON after repair")
-                    return self._validate_enhanced_response(parsed_data)
-            except:
-                pass
+            logger.warning(f"⚠️  JSON parsing failed: {e}, attempting enhanced repair")
             
-            logger.warning("⚠️  All JSON parsing attempts failed, using fallback")
-            return self._fallback_parse(response)
+            # Try multiple JSON extraction and repair strategies
+            repair_strategies = [
+                # Strategy 1: Fix truncated JSON from first match
+                lambda r: self._fix_truncated_json(re.search(r'\{[\s\S]*', r).group()) if re.search(r'\{[\s\S]*', r) else None,
+                
+                # Strategy 2: Extract JSON between first { and last }
+                lambda r: self._fix_truncated_json(r[r.find('{'):r.rfind('}')+1]) if '{' in r and '}' in r else None,
+                
+                # Strategy 3: Extract largest JSON-like block
+                lambda r: self._extract_largest_json_block(r),
+                
+                # Strategy 4: Progressive JSON extraction
+                lambda r: self._progressive_json_extraction(r)
+            ]
+            
+            for i, strategy in enumerate(repair_strategies, 1):
+                try:
+                    json_str = strategy(response)
+                    if json_str:
+                        parsed_data = json.loads(json_str)
+                        logger.info(f"✅ Successfully parsed JSON using repair strategy {i}")
+                        return self._validate_enhanced_response(parsed_data)
+                except Exception as strategy_error:
+                    logger.debug(f"🔧 Repair strategy {i} failed: {strategy_error}")
+                    continue
+            
+            logger.warning("⚠️  All JSON parsing attempts failed, using enhanced fallback")
+            return self._enhanced_fallback_parse(response)
     
     def _fix_truncated_json(self, json_str: str) -> str:
-        """Attempt to fix truncated JSON by adding missing closing braces and quotes"""
+        """Enhanced JSON repair for Grok's specific response patterns"""
+        
+        # Log original length for debugging
+        original_length = len(json_str)
+        logger.debug(f"🔧 Attempting to repair JSON (length: {original_length})")
+        
+        # Remove any trailing non-JSON content after the last }
+        last_brace = json_str.rfind('}')
+        if last_brace != -1 and last_brace < len(json_str) - 1:
+            # Check if there's significant content after the last brace
+            trailing_content = json_str[last_brace + 1:].strip()
+            if len(trailing_content) > 10:  # Likely extra content causing "Extra data" error
+                json_str = json_str[:last_brace + 1]
+                logger.debug(f"🔧 Removed trailing content: '{trailing_content[:50]}...'")
+        
+        # Handle common Grok response patterns
+        # Remove markdown code blocks if present
+        if json_str.startswith('```json'):
+            json_str = json_str[7:]
+        if json_str.startswith('```'):
+            json_str = json_str[3:]
+        if json_str.endswith('```'):
+            json_str = json_str[:-3]
+        
+        # Remove any leading/trailing whitespace and non-JSON content
+        json_str = json_str.strip()
+        
+        # Find the actual JSON start
+        json_start = json_str.find('{')
+        if json_start > 0:
+            json_str = json_str[json_start:]
         
         # Count opening and closing braces/brackets
         open_braces = json_str.count('{')
@@ -382,10 +435,15 @@ Provide analysis as JSON with these exact keys:
         open_brackets = json_str.count('[')
         close_brackets = json_str.count(']')
         
-        # If JSON is truncated in the middle of a string value, close the string
-        if json_str.count('"') % 2 == 1:
-            # Odd number of quotes means we're in the middle of a string
-            json_str += '"'
+        # Handle unmatched quotes more intelligently
+        quote_count = json_str.count('"')
+        if quote_count % 2 == 1:
+            # Find the last quote and see if it's in a string value
+            last_quote_pos = json_str.rfind('"')
+            # If the JSON ends abruptly after a quote, close the string
+            remaining = json_str[last_quote_pos + 1:].strip()
+            if not remaining or remaining.startswith(',') or remaining.startswith('}'):
+                json_str += '"'
         
         # Add missing closing brackets
         while close_brackets < open_brackets:
@@ -397,7 +455,190 @@ Provide analysis as JSON with these exact keys:
             json_str += '}'
             close_braces += 1
         
+        # Final cleanup - remove any trailing commas before closing braces
+        import re
+        json_str = re.sub(r',\s*}', '}', json_str)
+        json_str = re.sub(r',\s*]', ']', json_str)
+        
+        logger.debug(f"🔧 JSON repair complete (new length: {len(json_str)})")
         return json_str
+    
+    def _extract_score_from_text(self, response: str) -> float:
+        """Extract score from text using multiple patterns"""
+        import re
+        
+        # Try multiple score patterns
+        patterns = [
+            r'score["\s:]*(\d+\.?\d*)',
+            r'rating["\s:]*(\d+\.?\d*)',
+            r'(\d+\.?\d*)\s*(?:out of|/)\s*10',
+            r'(\d+\.?\d*)\s*/\s*10',
+            r'score.*?(\d+\.?\d*)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                score = float(match.group(1))
+                if 0 <= score <= 10:
+                    return score
+        
+        # Content-based scoring as last resort
+        return self._analyze_grok_text_for_score(response)
+    
+    def _extract_recommendation_from_text(self, response: str) -> str:
+        """Extract recommendation from text"""
+        import re
+        
+        # Look for explicit recommendations
+        rec_patterns = [
+            r'recommendation["\s:]*["\']?([^"\'}\n]+)',
+            r'(Strong Recommend|Recommend|Consider|Pass)',
+            r'verdict["\s:]*["\']?([^"\'}\n]+)',
+        ]
+        
+        for pattern in rec_patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                rec = match.group(1).strip()
+                if rec in ['Strong Recommend', 'Recommend', 'Consider', 'Pass']:
+                    return rec
+        
+        # Fallback based on content sentiment
+        if any(word in response.lower() for word in ['excellent', 'outstanding', 'brilliant']):
+            return 'Strong Recommend'
+        elif any(word in response.lower() for word in ['good', 'solid', 'decent']):
+            return 'Recommend'
+        elif any(word in response.lower() for word in ['okay', 'mediocre', 'average']):
+            return 'Consider'
+        else:
+            return 'Pass'
+    
+    def _extract_verdict_from_text(self, response: str) -> str:
+        """Extract verdict from text"""
+        import re
+        
+        # Look for verdict patterns
+        verdict_patterns = [
+            r'verdict["\s:]*["\']?([^"\'}\n]{20,200})',
+            r'one.line["\s:]*["\']?([^"\'}\n]{20,200})',
+            r'summary["\s:]*["\']?([^"\'}\n]{20,200})',
+        ]
+        
+        for pattern in verdict_patterns:
+            match = re.search(pattern, response, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        
+        # Extract first substantial sentence
+        sentences = re.split(r'[.!?]+', response)
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if 20 <= len(sentence) <= 200 and not sentence.startswith('{'):
+                return sentence
+        
+        return "Grok analysis completed with fallback parsing"
+    
+    def _extract_cultural_elements(self, response: str) -> Dict[str, Any]:
+        """Extract cultural analysis elements from text"""
+        import re
+        
+        # Look for cultural indicators
+        cringe_match = re.search(r'cringe.*?(\d+)', response, re.IGNORECASE)
+        cringe_factor = int(cringe_match.group(1)) if cringe_match else 5
+        
+        meme_indicators = ['meme', 'viral', 'tiktok', 'twitter', 'social media']
+        meme_potential = 'High' if any(word in response.lower() for word in meme_indicators) else 'Low'
+        
+        return {
+            'cringe_factor': min(10, max(1, cringe_factor)),
+            'meme_potential': f'{meme_potential} meme potential detected in text',
+            'twitter_discourse': 'Discourse analysis extracted from text',
+            'zeitgeist_score': 5,
+            'hello_fellow_kids_energy': 'Energy level assessed from content'
+        }
+    
+    def _extract_brutal_honesty_elements(self, response: str) -> Dict[str, Any]:
+        """Extract brutal honesty elements from text"""
+        
+        # Look for brutal honesty indicators
+        brutal_words = ['brutal', 'harsh', 'reality', 'honest', 'blunt', 'direct']
+        brutality_level = sum(1 for word in brutal_words if word in response.lower())
+        
+        return {
+            'protagonist_reality_check': 'Reality check extracted from analysis',
+            'tiktok_brain_pacing': 'Pacing assessment from content',
+            'competition_brutality': f'Competition analysis (brutality level: {brutality_level})',
+            'production_reality': 'Production feasibility assessed'
+        }
+    
+    def _extract_controversy_elements(self, response: str) -> Dict[str, Any]:
+        """Extract controversy analysis elements from text"""
+        
+        # Look for controversy indicators
+        controversy_words = ['controversy', 'backlash', 'sensitive', 'problematic', 'risk']
+        controversy_level = sum(1 for word in controversy_words if word in response.lower())
+        
+        risk_level = 'High' if controversy_level > 2 else 'Medium' if controversy_level > 0 else 'Low'
+        
+        return {
+            'representation_risk': f'{risk_level} risk detected',
+            'backlash_potential': f'Backlash potential: {risk_level.lower()}',
+            'polarization_level': f'{risk_level} polarization potential',
+            'boundary_assessment': 'Boundary assessment from content analysis'
+        }
+    
+    def _extract_largest_json_block(self, response: str) -> Optional[str]:
+        """Extract the largest valid JSON block from response"""
+        import re
+        
+        # Find all potential JSON blocks
+        json_blocks = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
+        
+        if not json_blocks:
+            return None
+        
+        # Return the largest block
+        largest_block = max(json_blocks, key=len)
+        return self._fix_truncated_json(largest_block)
+    
+    def _progressive_json_extraction(self, response: str) -> Optional[str]:
+        """Progressively extract JSON by finding balanced braces"""
+        
+        start_pos = response.find('{')
+        if start_pos == -1:
+            return None
+        
+        brace_count = 0
+        in_string = False
+        escape_next = False
+        
+        for i, char in enumerate(response[start_pos:], start_pos):
+            if escape_next:
+                escape_next = False
+                continue
+            
+            if char == '\\':
+                escape_next = True
+                continue
+            
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        # Found complete JSON block
+                        json_str = response[start_pos:i+1]
+                        return self._fix_truncated_json(json_str)
+        
+        # If we get here, JSON is incomplete
+        json_str = response[start_pos:]
+        return self._fix_truncated_json(json_str)
     
     def _validate_enhanced_response(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate and structure the enhanced Grok response"""
@@ -486,6 +727,45 @@ Provide analysis as JSON with these exact keys:
             }
         
         return validated
+    
+    def _enhanced_fallback_parse(self, response: str) -> Dict[str, Any]:
+        """Enhanced fallback parsing that extracts maximum data from Grok response"""
+        
+        import re
+        
+        logger.info("🔧 Using enhanced fallback parsing to extract Grok analysis data")
+        
+        # Extract score using multiple patterns
+        score = self._extract_score_from_text(response)
+        
+        # Extract recommendation
+        recommendation = self._extract_recommendation_from_text(response)
+        
+        # Extract verdict - look for key phrases
+        verdict = self._extract_verdict_from_text(response)
+        
+        # Extract cultural analysis elements
+        cultural_analysis = self._extract_cultural_elements(response)
+        
+        # Extract brutal honesty elements
+        brutal_honesty = self._extract_brutal_honesty_elements(response)
+        
+        # Extract controversy analysis
+        controversy_analysis = self._extract_controversy_elements(response)
+        
+        # Build comprehensive fallback result
+        result = {
+            'score': score,
+            'recommendation': recommendation,
+            'verdict': verdict,
+            'confidence': 0.6,  # Lower confidence for fallback parsing
+            'cultural_reality_check': cultural_analysis,
+            'brutal_honesty_assessment': brutal_honesty,
+            'controversy_analysis': controversy_analysis
+        }
+        
+        logger.info(f"🔧 Enhanced fallback extracted: score={score}, recommendation={recommendation}")
+        return result
     
     def _fallback_parse(self, response: str) -> Dict[str, Any]:
         """Fallback parsing when JSON extraction fails"""

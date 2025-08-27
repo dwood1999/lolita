@@ -7,6 +7,10 @@
 	let showUserMenu = false;
 
 	onMount(async () => {
+		await checkAuthStatus();
+	});
+
+	async function checkAuthStatus() {
 		try {
 			const response = await fetch('/api/auth/me', {
 				credentials: 'include' // Include cookies for session
@@ -14,11 +18,25 @@
 			const data = await response.json();
 			if (data.success) {
 				user = data.user;
+				console.log('Navigation: User authenticated:', user.email);
+			} else {
+				user = null;
+				console.log('Navigation: User not authenticated');
 			}
 		} catch (error) {
-			console.error('Failed to fetch user:', error);
+			console.error('Navigation: Failed to fetch user:', error);
+			user = null;
 		}
-	});
+	}
+
+	// Listen for custom auth events from other components
+	function handleAuthChange(event: CustomEvent) {
+		if (event.detail.user) {
+			user = event.detail.user;
+		} else {
+			user = null;
+		}
+	}
 
 	async function handleLogout() {
 		try {
@@ -68,7 +86,7 @@
 	$: currentPath = $page.url.pathname;
 </script>
 
-<svelte:window on:click={handleClickOutside} />
+<svelte:window on:click={handleClickOutside} on:authchange={handleAuthChange} />
 
 <nav class="bg-white shadow-sm border-b border-gray-200">
 	<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

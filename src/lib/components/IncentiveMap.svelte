@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { browser } from '$app/environment';
 	
 	export let incentives: any[] = [];
@@ -9,6 +9,7 @@
 	let map: any = null;
 	let L: any = null;
 	let mounted = false;
+	let initializing = false;
 	
 	onMount(async () => {
 		mounted = true;
@@ -17,13 +18,22 @@
 		}
 	});
 	
+	onDestroy(() => {
+		if (map) {
+			map.remove();
+			map = null;
+		}
+	});
+	
 	// Reactive statement to update map when incentives change
-	$: if (mounted && browser && incentives.length > 0 && !map) {
+	$: if (mounted && browser && incentives.length > 0 && !map && !initializing) {
 		initializeMap();
 	}
 	
 	async function initializeMap() {
-		if (!browser || !mapContainer || map) return;
+		if (!browser || !mapContainer || map || initializing) return;
+		
+		initializing = true;
 		
 		try {
 			// Dynamically import Leaflet
@@ -44,6 +54,8 @@
 			console.log('✅ Interactive map initialized successfully');
 		} catch (error) {
 			console.error('❌ Map initialization failed:', error);
+		} finally {
+			initializing = false;
 		}
 	}
 	

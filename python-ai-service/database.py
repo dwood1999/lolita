@@ -18,20 +18,22 @@ class ScreenplayDatabase:
         self.password = os.getenv("DB_PASSWORD")
         # Fix password handling - remove quotes if present and handle $ characters properly
         if self.password:
-            # Remove surrounding quotes if present
-            if self.password.startswith('"') and self.password.endswith('"'):
+            # Remove surrounding quotes if present (including the literal quotes from .env)
+            if self.password.startswith("'") and self.password.endswith("'"):
                 self.password = self.password[1:-1]
-            elif self.password.startswith("'") and self.password.endswith("'"):
+            elif self.password.startswith('"') and self.password.endswith('"'):
                 self.password = self.password[1:-1]
             # Fix password escaping issue - remove extra backslash if present
             if '\\$' in self.password:
                 self.password = self.password.replace('\\$', '$')
+            
+
         self.database = os.getenv("DB_NAME")
         
-        # Use connection pooling for better performance
+        # Enhanced connection pooling for better performance and reliability
         self.pool_config = {
             'pool_name': 'screenplay_pool',
-            'pool_size': 10,
+            'pool_size': 20,  # Increased from 10 to 20
             'pool_reset_session': True,
             'host': self.host,
             'user': self.user,
@@ -39,48 +41,97 @@ class ScreenplayDatabase:
             'database': self.database,
             'autocommit': True,
             'charset': 'utf8mb4',
-            'use_unicode': True
+            'use_unicode': True,
+            'connection_timeout': 30,  # 30 second connection timeout
+            'sql_mode': 'TRADITIONAL',
+            'get_warnings': False,  # Don't fetch warnings
+            'raise_on_warnings': False  # Don't raise on warnings
         }
+        
+        # Retry configuration
+        self.max_retries = 3
+        self.retry_delay = 1  # seconds
         
         self.connection_pool = None
         self.connection = None
         self.connect()
-        self.init_tables()
+        try:
+            self.init_tables()
+        except Exception as e:
+            if "already exists" in str(e) or "1050" in str(e):
+                logger.info("✅ Database tables already exist - skipping initialization")
+            else:
+                logger.error(f"❌ Database initialization failed: {e}")
+                # Don't raise - let the service continue with existing tables
+                pass
     
     def connect(self):
-        """Establish database connection pool"""
-        try:
-            # PyMySQL doesn't have built-in pooling, use single connection
-            self.connection_pool = None
-            
-            # Create direct connection with mysql.connector
-            self.connection = mysql.connector.connect(
-                host=self.host,
-                user=self.user,
-                password=self.password,
-                database=self.database,
-                autocommit=True,
-                charset='utf8mb4'
-            )
-            logger.info("✅ Database connection successful")
-        except Error as e:
-            logger.error(f"❌ Database connection failed: {e}")
-            raise
+        """Establish database connection with retry logic"""
+        for attempt in range(self.max_retries):
+            try:
+                # Create connection pool with mysql.connector
+                if not self.connection_pool:
+                    self.connection_pool = mysql.connector.pooling.MySQLConnectionPool(**self.pool_config)
+                    logger.info(f"✅ Database connection pool created (size: {self.pool_config['pool_size']})")
+                
+                # Test the pool with a connection
+                test_conn = self.connection_pool.get_connection()
+                test_conn.close()
+                return
+                
+            except Error as e:
+                logger.warning(f"⚠️  Database connection attempt {attempt + 1}/{self.max_retries} failed: {e}")
+                if attempt < self.max_retries - 1:
+                    import time
+                    time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
+                else:
+                    logger.error(f"❌ Database connection failed after {self.max_retries} attempts")
+                    raise
     
     def get_connection(self):
-        """Get database connection"""
-        if not self.connection or not self.connection.is_connected():
-            self.connect()
-        return self.connection
+        """Get database connection from pool with retry logic"""
+        for attempt in range(self.max_retries):
+            try:
+                if not self.connection_pool:
+                    self.connect()
+                
+                connection = self.connection_pool.get_connection()
+                if connection.is_connected():
+                    return connection
+                else:
+                    connection.close()
+                    raise Error("Connection not active")
+                    
+            except Error as e:
+                logger.warning(f"⚠️  Get connection attempt {attempt + 1}/{self.max_retries} failed: {e}")
+                if attempt < self.max_retries - 1:
+                    import time
+                    time.sleep(self.retry_delay * (attempt + 1))
+                    # Try to recreate the pool on connection failures
+                    if "pool" in str(e).lower():
+                        self.connection_pool = None
+                        self.connect()
+                else:
+                    logger.error(f"❌ Failed to get database connection after {self.max_retries} attempts")
+                    raise
     
     def init_tables(self):
         """Initialize screenplay analysis tables"""
+        connection = None
         try:
-            cursor = self.connection.cursor()
+            connection = self.get_connection()
+            cursor = connection.cursor()
+            
+            # Disable warnings for table creation
+            try:
+                cursor.execute("SET sql_notes = 0")
+            except Exception:
+                pass  # Ignore if this fails
             
             # Create screenplay_analyses table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS screenplay_analyses (
+            try:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS screenplay_analyses (
                     id VARCHAR(255) PRIMARY KEY,
                     user_id VARCHAR(255) NOT NULL,
                     title VARCHAR(500) NOT NULL,
@@ -172,10 +223,14 @@ class ScreenplayDatabase:
                     INDEX idx_status (status),
                     INDEX idx_created_at (created_at)
                 )
-            """)
+                """)
+            except Exception as e:
+                if "already exists" not in str(e) and "1050" not in str(e):
+                    raise
             
             # Create api_usage_tracking table
-            cursor.execute("""
+            try:
+                cursor.execute("""
                 CREATE TABLE IF NOT EXISTS api_usage_tracking (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     user_id VARCHAR(255) NOT NULL,
@@ -201,10 +256,14 @@ class ScreenplayDatabase:
                     INDEX idx_api_provider (api_provider),
                     INDEX idx_created_at (created_at)
                 )
-            """)
+                """)
+            except Exception as e:
+                if "already exists" not in str(e) and "1050" not in str(e):
+                    raise
             
             # Create user_usage_summary table
-            cursor.execute("""
+            try:
+                cursor.execute("""
                 CREATE TABLE IF NOT EXISTS user_usage_summary (
                     user_id VARCHAR(255) PRIMARY KEY,
                     
@@ -222,19 +281,30 @@ class ScreenplayDatabase:
                     last_analysis_at TIMESTAMP NULL,
                     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
                 )
-            """)
+                """)
+            except Exception as e:
+                if "already exists" not in str(e) and "1050" not in str(e):
+                    raise
             
-            self.connection.commit()
+            # Re-enable warnings
+            cursor.execute("SET sql_notes = 1")
+            
+            connection.commit()
             logger.info("✅ Database tables initialized successfully")
             
         except Error as e:
             logger.error(f"❌ Database initialization error: {e}")
             raise
+        finally:
+            if connection:
+                connection.close()
     
     def save_analysis(self, analysis_data: Dict[str, Any]) -> bool:
         """Save analysis results to database"""
+        connection = None
         try:
-            cursor = self.connection.cursor()
+            connection = self.get_connection()
+            cursor = connection.cursor()
             # Defensive: ensure JSON types are serialized
             try:
                 if isinstance(analysis_data.get('budget_notes'), (dict, list)):
@@ -540,17 +610,22 @@ class ScreenplayDatabase:
                 analysis_data.get('ai_budget_min'), analysis_data.get('ai_budget_optimal'), analysis_data.get('ai_budget_max'), analysis_data.get('budget_notes')
             )
             cursor.execute(query, values)
-            self.connection.commit()
+            connection.commit()
             return True
             
         except Error as e:
             logger.error(f"❌ Error saving analysis: {e}")
             return False
+        finally:
+            if connection:
+                connection.close()
 
     def insert_initial_analysis(self, initial_data: Dict[str, Any]) -> bool:
         """Insert an initial minimal analysis row to avoid placeholder mismatches"""
+        connection = None
         try:
-            cursor = self.connection.cursor()
+            connection = self.get_connection()
+            cursor = connection.cursor()
 
             query = (
                 "INSERT INTO screenplay_analyses ("
@@ -572,17 +647,22 @@ class ScreenplayDatabase:
             )
 
             cursor.execute(query, values)
-            self.connection.commit()
+            connection.commit()
             return True
         
         except Error as e:
             logger.error(f"❌ Error inserting initial analysis: {e}")
             return False
+        finally:
+            if connection:
+                connection.close()
     
     def get_analysis(self, analysis_id: str) -> Optional[Dict[str, Any]]:
         """Get analysis by ID"""
+        connection = None
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            connection = self.get_connection()
+            cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT * FROM screenplay_analyses WHERE id = %s", (analysis_id,))
             result = cursor.fetchone()
             
@@ -612,6 +692,9 @@ class ScreenplayDatabase:
         except Error as e:
             logger.error(f"❌ Error getting analysis: {e}")
             return None
+        finally:
+            if connection:
+                connection.close()
     
     def get_user_analyses(self, user_id: str, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """Get all analyses for a user"""
@@ -641,8 +724,10 @@ class ScreenplayDatabase:
     
     def update_analysis_status(self, analysis_id: str, status: str, error_message: str = None) -> bool:
         """Update analysis status"""
+        connection = None
         try:
-            cursor = self.connection.cursor()
+            connection = self.get_connection()
+            cursor = connection.cursor()
             if error_message:
                 cursor.execute(
                     "UPDATE screenplay_analyses SET status = %s, error_message = %s WHERE id = %s",
@@ -653,17 +738,22 @@ class ScreenplayDatabase:
                     "UPDATE screenplay_analyses SET status = %s WHERE id = %s",
                     (status, analysis_id)
                 )
-            self.connection.commit()
+            connection.commit()
             return True
             
         except Error as e:
             logger.error(f"❌ Error updating analysis status: {e}")
             return False
+        finally:
+            if connection:
+                connection.close()
     
     def track_api_usage(self, usage_data: Dict[str, Any]) -> bool:
         """Track API usage for cost monitoring"""
+        connection = None
         try:
-            cursor = self.connection.cursor()
+            connection = self.get_connection()
+            cursor = connection.cursor()
             
             query = """
                 INSERT INTO api_usage_tracking (
@@ -678,7 +768,7 @@ class ScreenplayDatabase:
             """
             
             cursor.execute(query, usage_data)
-            self.connection.commit()
+            connection.commit()
             
             # Update user usage summary
             self.update_user_usage_summary(usage_data['user_id'], usage_data['cost'], usage_data['total_tokens'])
@@ -688,11 +778,16 @@ class ScreenplayDatabase:
         except Error as e:
             logger.error(f"❌ Error tracking API usage: {e}")
             return False
+        finally:
+            if connection:
+                connection.close()
     
     def update_user_usage_summary(self, user_id: str, cost: float, tokens: int) -> bool:
         """Update user usage summary"""
+        connection = None
         try:
-            cursor = self.connection.cursor()
+            connection = self.get_connection()
+            cursor = connection.cursor()
             
             # Insert or update user usage summary
             query = """
@@ -712,20 +807,28 @@ class ScreenplayDatabase:
             """
             
             cursor.execute(query, (user_id, cost, tokens, cost, tokens, cost, tokens, cost, tokens))
-            self.connection.commit()
+            connection.commit()
             return True
             
         except Error as e:
             logger.error(f"❌ Error updating user usage summary: {e}")
             return False
+        finally:
+            if connection:
+                connection.close()
     
     def get_user_usage_stats(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user usage statistics"""
+        connection = None
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            connection = self.get_connection()
+            cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT * FROM user_usage_summary WHERE user_id = %s", (user_id,))
             return cursor.fetchone()
             
         except Error as e:
             logger.error(f"❌ Error getting user usage stats: {e}")
             return None
+        finally:
+            if connection:
+                connection.close()

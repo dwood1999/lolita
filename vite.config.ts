@@ -23,8 +23,7 @@ export default defineConfig({
 			output: {
 				// Code splitting for better caching
 				manualChunks: {
-					vendor: ['svelte', '@sveltejs/kit'],
-					ui: ['tailwindcss']
+					vendor: ['svelte']
 				}
 			}
 		}

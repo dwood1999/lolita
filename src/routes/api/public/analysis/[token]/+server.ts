@@ -44,23 +44,88 @@ export const GET: RequestHandler = async ({ params }) => {
 		const analysisId = tokenResults[0].id;
 		const title = tokenResults[0].title;
 
-		// Get analysis from Python service
-		const response = await fetch(`${PYTHON_SERVICE_URL}/analysis/${analysisId}`);
-
-		if (!response.ok) {
-			if (response.status === 404) {
+		// Try to get analysis from Python service first, fallback to database
+		let result: any = null;
+		
+		try {
+			const response = await fetch(`${PYTHON_SERVICE_URL}/analysis/${analysisId}`);
+			
+			if (response.ok) {
+				result = await response.json();
+				console.log(`✅ Got analysis from Python service: ${analysisId}`);
+			} else {
+				throw new Error(`Python service returned ${response.status}`);
+			}
+		} catch (pythonError) {
+			console.warn(`⚠️ Python service unavailable, fetching from database: ${pythonError}`);
+			
+			// Fallback: Get analysis directly from database
+			const dbResults = await executeQuery(`
+				SELECT * FROM screenplay_analyses WHERE id = ? AND is_public = TRUE
+			`, [analysisId]) as any[];
+			
+			if (dbResults.length === 0) {
 				return json({ error: 'Analysis not found' }, { status: 404 });
 			}
 			
-			const errorData = await response.text();
-			console.error('Python service error:', errorData);
-			return json({ 
-				error: 'Analysis service unavailable', 
-				detail: errorData 
-			}, { status: response.status });
+			const dbAnalysis = dbResults[0];
+			
+			// Format the database result to match the expected structure
+			result = {
+				status: 'completed',
+				result: {
+					title: dbAnalysis.title,
+					genre: dbAnalysis.genre || dbAnalysis.detected_genre,
+					overall_score: dbAnalysis.overall_score,
+					recommendation: dbAnalysis.recommendation,
+					one_line_verdict: dbAnalysis.one_line_verdict,
+					executive_summary: dbAnalysis.executive_summary,
+					logline: dbAnalysis.logline,
+					top_strengths: dbAnalysis.top_strengths,
+					key_weaknesses: dbAnalysis.key_weaknesses,
+					suggestions: dbAnalysis.suggestions,
+					commercial_viability: dbAnalysis.commercial_viability,
+					target_audience: dbAnalysis.target_audience,
+					comparable_films: dbAnalysis.comparable_films,
+					character_analysis: dbAnalysis.character_analysis,
+					structural_analysis: dbAnalysis.structural_analysis,
+					thematic_depth: dbAnalysis.thematic_depth,
+					craft_evaluation: dbAnalysis.craft_evaluation,
+					improvement_strategies: dbAnalysis.improvement_strategies,
+					genre_mastery: dbAnalysis.genre_mastery,
+					director_recommendation: dbAnalysis.director_recommendation,
+					perplexity_market_trends: dbAnalysis.perplexity_market_trends,
+					perplexity_competitive_analysis: dbAnalysis.perplexity_competitive_analysis,
+					perplexity_audience_demographics: dbAnalysis.perplexity_audience_demographics,
+					perplexity_distribution_strategy: dbAnalysis.perplexity_distribution_strategy,
+					perplexity_industry_reports: dbAnalysis.perplexity_industry_reports,
+					perplexity_financial_intelligence: dbAnalysis.perplexity_financial_intelligence,
+					perplexity_talent_intelligence: dbAnalysis.perplexity_talent_intelligence,
+					casting_suggestions: dbAnalysis.casting_suggestions,
+					// DeepSeek Financial Analysis
+					deepseek_financial_score: dbAnalysis.deepseek_financial_score,
+					deepseek_confidence: dbAnalysis.deepseek_confidence,
+					deepseek_recommendation: dbAnalysis.deepseek_recommendation,
+					deepseek_budget_optimization: dbAnalysis.deepseek_budget_optimization,
+					deepseek_roi_analysis: dbAnalysis.deepseek_roi_analysis,
+					deepseek_risk_assessment: dbAnalysis.deepseek_risk_assessment,
+					deepseek_platform_analysis: dbAnalysis.deepseek_platform_analysis,
+					// GPT-5 Analysis
+					gpt5_score: dbAnalysis.gpt5_score,
+					gpt5_recommendation: dbAnalysis.gpt5_recommendation,
+					gpt5_executive_assessment: dbAnalysis.gpt5_executive_assessment,
+					// Genre Analysis
+					genre: dbAnalysis.genre,
+					detected_genre: dbAnalysis.detected_genre,
+					subgenre: dbAnalysis.subgenre,
+					genre_mastery: dbAnalysis.genre_mastery,
+					// Improvement Strategies
+					improvement_strategies: dbAnalysis.improvement_strategies
+				}
+			};
+			
+			console.log(`✅ Got analysis from database fallback: ${analysisId}`);
 		}
-
-		const result = await response.json();
 
 		// Enhance with database metadata for public view
 		try {

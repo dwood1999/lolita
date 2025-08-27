@@ -14,6 +14,10 @@
 			
 			if (data.success) {
 				user = data.user;
+				// Dispatch auth event to update navigation
+				window.dispatchEvent(new CustomEvent('authchange', { 
+					detail: { user: data.user } 
+				}));
 				await loadStats();
 			} else {
 				// Not authenticated, redirect to login

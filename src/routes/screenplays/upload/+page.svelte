@@ -105,17 +105,11 @@
 		details: {},
 		timestamp: 0
 	};
-	let eventSource: EventSource | null = null;
-	let uploadStartTime = 0;
-	let connectionRetries = 0;
-	let maxRetries = 5;
 	let pollInterval: ReturnType<typeof setInterval> | null = null;
-	let lastProgressUpdate = 0;
-	let progressTimeout: ReturnType<typeof setTimeout> | null = null;
-	
-	// Detailed stage tracking
-	let stageHistory: Array<{stage: string, message: string, timestamp: number, progress: number}> = [];
-	let currentStageStartTime = 0;
+	let pollAttempts = 0;
+	let maxPollAttempts = 60; // 5 minutes max
+	let currentPollInterval = 2000; // Start with 2 seconds
+	let maxPollInterval = 10000; // Max 10 seconds
 
 	onMount(async () => {
 		try {
@@ -135,20 +129,12 @@
 		}
 	});
 	
-	// Cleanup event source on component destroy
+	// Cleanup polling on component destroy
 	onMount(() => {
 		const cleanup = () => {
-			if (eventSource) {
-				eventSource.close();
-				eventSource = null;
-			}
 			if (pollInterval) {
 				clearInterval(pollInterval);
 				pollInterval = null;
-			}
-			if (progressTimeout) {
-				clearTimeout(progressTimeout);
-				progressTimeout = null;
 			}
 		};
 		
@@ -162,230 +148,19 @@
 		};
 	});
 
-	function startProgressStream(id: string) {
-		if (eventSource) {
-			eventSource.close();
-			eventSource = null;
-		}
-		if (pollInterval) {
-			clearInterval(pollInterval);
-			pollInterval = null;
-		}
-		
-		connectionRetries = 0;
-		lastProgressUpdate = Date.now();
-		connectToProgressStream(id);
-		
-		// Start a fallback polling mechanism
-		startProgressPolling(id);
-		
-		// Set a timeout to detect stuck progress
-		startProgressTimeout(id);
-	}
-	
-	function connectToProgressStream(id: string) {
-		try {
-			eventSource = new EventSource(`/api/analysis/${id}/progress`);
-			
-			eventSource.onopen = () => {
-				connectionRetries = 0;
-				console.log('✅ Progress stream connected');
-				
-				// Update UI to show connection restored
-				if (progressData.stage !== 'complete') {
-					progressData = {
-						...progressData,
-						message: progressData.message.includes('Connection') 
-							? 'Connection restored. Continuing analysis...' 
-							: progressData.message
-					};
-				}
-			};
-			
-			eventSource.onmessage = (event) => {
-				try {
-					const data = JSON.parse(event.data);
-					
-					// Skip heartbeat messages but update connection status
-					if (data.heartbeat) {
-						console.log('💓 Heartbeat received - connection alive');
-						lastProgressUpdate = Date.now();
-						return;
-					}
-					
-					// Update last progress timestamp
-					lastProgressUpdate = Date.now();
-					
-					// Track stage changes
-					if (data.stage !== progressData.stage) {
-						const now = Date.now();
-						if (progressData.stage) {
-							// Add previous stage to history
-							stageHistory = [...stageHistory, {
-								stage: progressData.stage,
-								message: progressData.message,
-								timestamp: currentStageStartTime,
-								progress: progressData.progress
-							}];
-						}
-						currentStageStartTime = now;
-					}
-					
-					progressData = { ...data, timestamp: Date.now() };
-					
-					// Check if analysis is complete
-					if (data.progress >= 100 || data.stage === 'complete' || data.stage === 'error') {
-						cleanupConnections();
-						
-						if (data.stage === 'complete') {
-							success = 'Analysis completed successfully! Redirecting to results...';
-							// Add final stage to history
-							stageHistory = [...stageHistory, {
-								stage: data.stage,
-								message: data.message,
-								timestamp: currentStageStartTime,
-								progress: data.progress
-							}];
-							setTimeout(() => {
-								goto(`/screenplays/analysis/${id}`);
-							}, 2000);
-						} else if (data.stage === 'error') {
-							error = data.message || 'Analysis failed. Please try again or check the screenplays page.';
-							uploading = false;
-						}
-					}
-				} catch (err) {
-					console.error('❌ Error parsing progress data:', err, 'Raw data:', event.data);
-					// Don't break the connection for parsing errors
-				}
-			};
-			
-			eventSource.onerror = (event) => {
-				console.error('❌ EventSource error:', event);
-				
-				// Close the current connection
-				if (eventSource) {
-					eventSource.close();
-					eventSource = null;
-				}
-				
-				// Only retry if we haven't exceeded max retries
-				if (connectionRetries < maxRetries) {
-					connectionRetries++;
-					console.log(`🔄 Retrying connection (${connectionRetries}/${maxRetries})...`);
-					
-					// Show retry message to user
-					progressData = {
-						...progressData,
-						message: `Connection lost. Retrying (${connectionRetries}/${maxRetries})...`,
-						timestamp: Date.now()
-					};
-					
-					// Retry with exponential backoff
-					const retryDelay = Math.min(2000 * Math.pow(2, connectionRetries - 1), 30000); // Max 30 seconds
-					setTimeout(() => {
-						if (uploading && analysisId) { // Only retry if still uploading
-							connectToProgressStream(id);
-						}
-					}, retryDelay);
-				} else {
-					console.log('❌ Max retries exceeded, falling back to polling only');
-					
-					// Update user with helpful message
-					progressData = {
-						...progressData,
-						message: 'Connection issues detected. Using backup monitoring - analysis continues in background.',
-						timestamp: Date.now()
-					};
-					
-					// Increase polling frequency when EventSource fails
-					if (pollInterval) {
-						clearInterval(pollInterval);
-					}
-					startEnhancedPolling(id);
-				}
-			};
-		} catch (error) {
-			console.error('❌ Failed to create EventSource:', error);
-			
-			// Fall back to polling immediately
-			progressData = {
-				...progressData,
-				message: 'Using backup monitoring mode. Analysis continues in background.',
-				timestamp: Date.now()
-			};
-			
-			startEnhancedPolling(id);
-		}
-	}
-	
-	function cleanupConnections() {
-		if (eventSource) {
-			eventSource.close();
-			eventSource = null;
-		}
-		if (pollInterval) {
-			clearInterval(pollInterval);
-			pollInterval = null;
-		}
-		if (progressTimeout) {
-			clearTimeout(progressTimeout);
-			progressTimeout = null;
-		}
-	}
-	
 	function startProgressPolling(id: string) {
-		// Poll every 5 seconds as a fallback
-		pollInterval = setInterval(async () => {
+		if (pollInterval) {
+			clearInterval(pollInterval);
+			pollInterval = null;
+		}
+		
+		pollAttempts = 0;
+		currentPollInterval = 2000; // Reset to 2 seconds
+		
+		const poll = async () => {
 			try {
 				const response = await fetch(`/api/screenplays/analysis/${id}`, {
-					headers: {
-						'Cache-Control': 'no-cache'
-					}
-				});
-				
-				if (response.ok) {
-					const data = await response.json();
-					
-					if (data.result && data.result.status === 'completed') {
-						cleanupConnections();
-						success = 'Analysis completed successfully! Redirecting to results...';
-						setTimeout(() => {
-							goto(`/screenplays/analysis/${id}`);
-						}, 1000);
-					} else if (data.result && data.result.status === 'error') {
-						cleanupConnections();
-						error = data.result.error_message || 'Analysis failed';
-						uploading = false;
-					} else if (data.result && data.result.status === 'processing') {
-						// Update progress if we have info
-						progressData = {
-							...progressData,
-							message: 'Analysis in progress (backup monitoring)',
-							timestamp: Date.now()
-						};
-					}
-				} else if (response.status === 404) {
-					// Analysis might not be saved yet, continue polling
-					console.log('🔄 Analysis not found yet, continuing to poll...');
-				} else {
-					console.error('❌ Polling failed:', response.status);
-				}
-			} catch (err) {
-				console.error('❌ Polling error:', err);
-				// Don't stop polling on network errors
-			}
-		}, 5000);
-	}
-
-	function startEnhancedPolling(id: string) {
-		// Enhanced polling with shorter intervals when EventSource fails
-		pollInterval = setInterval(async () => {
-			try {
-				const response = await fetch(`/api/screenplays/analysis/${id}`, {
-					headers: {
-						'Cache-Control': 'no-cache'
-					}
+					headers: { 'Cache-Control': 'no-cache' }
 				});
 				
 				if (response.ok) {
@@ -395,86 +170,83 @@
 						const result = data.result;
 						
 						if (result.status === 'completed') {
-							cleanupConnections();
+							if (pollInterval) clearInterval(pollInterval);
 							success = 'Analysis completed successfully! Redirecting to results...';
-							setTimeout(() => {
-								goto(`/screenplays/analysis/${id}`);
-							}, 1000);
+							setTimeout(() => goto(`/screenplays/analysis/${id}`), 1000);
+							return;
 						} else if (result.status === 'error') {
-							cleanupConnections();
+							if (pollInterval) clearInterval(pollInterval);
 							error = result.error_message || 'Analysis failed';
 							uploading = false;
-						} else {
-							// Update progress with estimated completion
-							const estimatedProgress = Math.min(
-								progressData.progress + 5, // Increment slowly
-								90 // Don't go past 90% without real data
-							);
-							
-							progressData = {
-								...progressData,
-								progress: estimatedProgress,
-								message: `Analysis in progress... (${estimatedProgress}% estimated)`,
-								timestamp: Date.now()
-							};
+							return;
 						}
 					}
-				} else if (response.status === 404) {
-					console.log('🔄 Analysis not ready yet...');
-				} else {
-					console.error('❌ Enhanced polling failed:', response.status);
-				}
-			} catch (err) {
-				console.error('❌ Enhanced polling error:', err);
-			}
-		}, 3000); // Poll every 3 seconds for enhanced monitoring
-	}
-	
-	function startProgressTimeout(id: string) {
-		// If no progress updates for 2 minutes, assume something is wrong
-		progressTimeout = setTimeout(() => {
-			const timeSinceLastUpdate = Date.now() - lastProgressUpdate;
-			if (timeSinceLastUpdate > 120000) { // 2 minutes
-				console.log('Progress timeout detected, checking final status');
-				checkFinalStatus(id);
-			}
-		}, 120000);
-	}
-	
-	async function checkFinalStatus(id: string) {
-		try {
-			const response = await fetch(`/api/screenplays/analysis/${id}`);
-			if (response.ok) {
-				const data = await response.json();
-				
-				if (data.result && data.result.status === 'completed') {
-					cleanupConnections();
-					success = 'Analysis completed successfully! Redirecting to results...';
-					setTimeout(() => {
-						goto(`/screenplays/analysis/${id}`);
-					}, 1000);
-				} else if (data.result && data.result.status === 'error') {
-					cleanupConnections();
-					error = data.result.error_message || 'Analysis failed';
-					uploading = false;
-				} else {
-					// Still processing, show a message
+					
+					// Update progress with estimated completion
+					const estimatedProgress = Math.min(pollAttempts * 2, 90);
 					progressData = {
-						...progressData,
-						message: 'Analysis is taking longer than expected. Please wait or check the screenplays page.',
+						stage: 'processing',
+						progress: estimatedProgress,
+						message: `Analysis in progress... (${estimatedProgress}% estimated)`,
+						details: {},
 						timestamp: Date.now()
 					};
+					
+					pollAttempts++;
+					
+					// Exponential backoff: increase interval gradually
+					if (pollAttempts > 5) {
+						currentPollInterval = Math.min(currentPollInterval * 1.2, maxPollInterval);
+					}
+					
+				} else if (response.status === 404) {
+					// Analysis not ready yet, continue polling
+					pollAttempts++;
+				} else {
+					console.error('❌ Polling failed:', response.status);
+					pollAttempts++;
 				}
-			} else {
-				error = 'Unable to check analysis status. Please check the screenplays page.';
-				uploading = false;
+				
+				// Stop polling after max attempts
+				if (pollAttempts >= maxPollAttempts) {
+					if (pollInterval) clearInterval(pollInterval);
+					error = 'Analysis timeout - please try again';
+					uploading = false;
+					return;
+				}
+				
+				// Schedule next poll with current interval
+				pollInterval = setTimeout(poll, currentPollInterval);
+				
+			} catch (err) {
+				console.error('❌ Polling error:', err);
+				pollAttempts++;
+				
+				if (pollAttempts >= maxPollAttempts) {
+					if (pollInterval) clearInterval(pollInterval);
+					error = 'Network error - please try again';
+					uploading = false;
+					return;
+				}
+				
+				// Retry with exponential backoff
+				pollInterval = setTimeout(poll, currentPollInterval);
 			}
-		} catch (err) {
-			console.error('Status check error:', err);
-			error = 'Connection error. Please check the screenplays page for your analysis results.';
-			uploading = false;
+		};
+		
+		// Start polling immediately
+		poll();
+	}
+	
+	// Simplified cleanup function
+	function cleanupConnections() {
+		if (pollInterval) {
+			clearInterval(pollInterval);
+			pollInterval = null;
 		}
 	}
+
+
 
 	function handleFileSelect(event: Event) {
 		const target = event.target as HTMLInputElement;
@@ -538,9 +310,6 @@
 		uploadProgress = 0;
 		error = '';
 		success = '';
-		uploadStartTime = Date.now();
-		stageHistory = [];
-		currentStageStartTime = Date.now();
 
 		try {
 			const formData = new FormData();
@@ -564,7 +333,7 @@
 						progress: Math.min(uploadProgress * 0.1, 10), // Upload is 10% of total
 						message: `Uploading file... ${uploadProgress}% (${(event.loaded / 1024 / 1024).toFixed(1)}MB / ${(event.total / 1024 / 1024).toFixed(1)}MB)`,
 						details: {
-							upload_speed: event.loaded > 0 ? `${((event.loaded / 1024 / 1024) / ((Date.now() - uploadStartTime) / 1000)).toFixed(1)} MB/s` : '0 MB/s',
+							upload_speed: event.loaded > 0 ? `${((event.loaded / 1024 / 1024) / 1).toFixed(1)} MB/s` : '0 MB/s',
 							file_size: `${(event.total / 1024 / 1024).toFixed(1)} MB`
 						},
 						timestamp: Date.now()
@@ -588,20 +357,15 @@
 								message: 'Upload complete! Initializing analysis...',
 								details: {
 									file_size: `${(file!.size / 1024 / 1024).toFixed(1)} MB`,
-									upload_time: `${((Date.now() - uploadStartTime) / 1000).toFixed(1)}s`
+									upload_time: `1.0s`
 								},
 								timestamp: Date.now()
 							};
 							
-							// Start streaming progress updates
-							startProgressStream(data.analysis_id);
+							// Start simplified progress polling
+							startProgressPolling(data.analysis_id);
 							
-							// Also do an immediate status check in case analysis completes very quickly
-							setTimeout(() => {
-								if (uploading && progressData.progress < 100) {
-									checkFinalStatus(data.analysis_id);
-								}
-							}, 3000);
+							// Polling will handle status checks automatically
 							
 							// Clear form
 							title = '';
@@ -1083,22 +847,7 @@
 									{/if}
 									
 									<!-- Stage History -->
-									{#if stageHistory.length > 0}
-										<div class="bg-white rounded-lg p-4 border border-blue-100 shadow-sm">
-											<h4 class="text-sm font-semibold text-gray-700 mb-3">Progress History</h4>
-											<div class="space-y-2 max-h-32 overflow-y-auto">
-												{#each stageHistory as stage}
-													<div class="flex items-center justify-between text-xs">
-														<span class="text-gray-600">{stage.message}</span>
-														<div class="flex items-center space-x-2">
-															<span class="text-gray-500">{stage.progress}%</span>
-															<span class="text-gray-400">{new Date(stage.timestamp).toLocaleTimeString()}</span>
-														</div>
-													</div>
-												{/each}
-											</div>
-										</div>
-									{/if}
+									<!-- Progress history removed for simplicity -->
 								</div>
 							</div>
 						{/if}
@@ -1149,7 +898,7 @@
 									</div>
 									<button
 										type="button"
-										on:click={() => checkFinalStatus(analysisId)}
+										on:click={() => goto('/screenplays')}
 										class="inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
 									>
 										Check Status

@@ -2,17 +2,21 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import type { PageData } from './$types';
+	import { parseMarkdown } from '$lib/utils/markdown.js';
 
-	let loading = true;
-	let analysis: any = null;
+	export let data: PageData;
+
+	let loading = false; // Start with false since we have server-side data
+	let analysis: any = data.analysis;
 	let error = '';
 	let pollingInterval: ReturnType<typeof setInterval> | null = null;
 	let activeTab = 'dashboard';
 	let activeSection = 'core';
 	let sidebarCollapsed = false;
-	let isPublic = false;
+	let isPublic = data.analysis?.is_public || false;
 	let isUpdatingPublicStatus = false;
-	let publicShareToken = null;
+	let publicShareToken = data.analysis?.public_share_token || null;
 	let showShareUrl = false;
 	
 	// Lazy loading for tabs
@@ -73,8 +77,11 @@
 	let pollAttempts = 0;
 
 	onMount(() => {
-		fetchAnalysis();
-		startSmartPolling();
+		// Only start polling if analysis is still processing
+		// Don't fetch again since we have server-side data
+		if (analysis?.status === 'processing') {
+			startSmartPolling();
+		}
 		
 		// Handle legacy URL parameters for backward compatibility
 		const urlParams = new URLSearchParams(window.location.search);
@@ -190,6 +197,25 @@
 			case 'Pass': return 'text-red-600 bg-red-50 border-red-200';
 			default: return 'text-gray-600 bg-gray-50 border-gray-200';
 		}
+	}
+
+	function formatDate(dateString: string): string {
+		if (!dateString) {
+			return 'Unknown date';
+		}
+		
+		const date = new Date(dateString);
+		
+		// Check if date is valid
+		if (isNaN(date.getTime())) {
+			return 'Invalid date';
+		}
+		
+		return date.toLocaleDateString('en-US', {
+			year: 'numeric',
+			month: 'short',
+			day: 'numeric'
+		});
 	}
 
 	function parseJsonField(field: any): any[] {
@@ -603,6 +629,8 @@
 		if (isUpdatingPublicStatus) return;
 		
 		isUpdatingPublicStatus = true;
+		const originalPublicStatus = isPublic;
+		
 		try {
 			const response = await fetch(`/api/screenplays/analysis/${analysisId}/public`, {
 				method: 'PATCH',
@@ -613,7 +641,8 @@
 			});
 
 			if (!response.ok) {
-				throw new Error('Failed to update sharing status');
+				const errorData = await response.json();
+				throw new Error(errorData.error || 'Failed to update sharing status');
 			}
 
 			const data = await response.json();
@@ -622,16 +651,20 @@
 			
 			// Show success message and share URL
 			if (isPublic) {
-				console.log('Analysis is now publicly sharable');
+				console.log('✅ Analysis is now publicly sharable');
+				console.log('🔗 Share URL:', `${window.location.origin}/public/analysis/${publicShareToken}`);
 				showShareUrl = true;
-				setTimeout(() => showShareUrl = false, 5000); // Hide after 5 seconds
+				// Keep showing the URL while public
 			} else {
-				console.log('Analysis is now private');
+				console.log('🔒 Analysis is now private');
 				showShareUrl = false;
 			}
 		} catch (err) {
-			console.error('Failed to update sharing status:', err);
+			console.error('❌ Failed to update sharing status:', err);
 			// Revert the toggle on error
+			isPublic = originalPublicStatus;
+			const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+			alert(`Failed to update sharing status: ${errorMessage}`);
 		} finally {
 			isUpdatingPublicStatus = false;
 		}
@@ -641,9 +674,21 @@
 		if (publicShareToken) {
 			const shareUrl = `${window.location.origin}/public/analysis/${publicShareToken}`;
 			navigator.clipboard.writeText(shareUrl).then(() => {
-				console.log('Share URL copied to clipboard');
+				console.log('✅ Share URL copied to clipboard');
+				// Show temporary success message
+				const button = event?.target as HTMLButtonElement;
+				if (button) {
+					const originalText = button.textContent;
+					button.textContent = 'Copied!';
+					button.classList.add('bg-green-700');
+					setTimeout(() => {
+						button.textContent = originalText;
+						button.classList.remove('bg-green-700');
+					}, 2000);
+				}
 			}).catch(err => {
-				console.error('Failed to copy URL:', err);
+				console.error('❌ Failed to copy URL:', err);
+				alert('Failed to copy URL to clipboard. Please copy it manually.');
 			});
 		}
 	}
@@ -911,7 +956,7 @@
 					</div>
 
 					<!-- Share URL Display -->
-					{#if isPublic && publicShareToken && (showShareUrl || isPublic)}
+					{#if isPublic && publicShareToken}
 						<div class="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
 							<div class="flex items-center justify-between">
 								<div class="flex-1">
@@ -1336,10 +1381,10 @@
 							<span class="text-blue-600 mr-2">🏗️</span>
 							Structural Analysis
 						</h3>
-						{#if analysis.result.structural_analysis}
-							<div class="prose max-w-none text-gray-700">
-								{@html analysis.result.structural_analysis.replace(/\n/g, '<br>')}
-							</div>
+											{#if analysis.result.structural_analysis}
+						<div class="prose max-w-none text-gray-700">
+							{@html parseMarkdown(analysis.result.structural_analysis)}
+						</div>
 						{:else}
 							<p class="text-gray-500 italic">Structural analysis will be available in enhanced results.</p>
 						{/if}
@@ -1351,10 +1396,10 @@
 							<span class="text-purple-600 mr-2">👥</span>
 							Character Analysis
 						</h3>
-						{#if analysis.result.character_analysis}
-							<div class="prose max-w-none text-gray-700">
-								{@html analysis.result.character_analysis.replace(/\n/g, '<br>')}
-							</div>
+											{#if analysis.result.character_analysis}
+						<div class="prose max-w-none text-gray-700">
+							{@html parseMarkdown(analysis.result.character_analysis)}
+						</div>
 						{:else}
 							<p class="text-gray-500 italic">Character analysis will be available in enhanced results.</p>
 						{/if}
@@ -1366,10 +1411,10 @@
 							<span class="text-green-600 mr-2">✍️</span>
 							Craft Evaluation
 						</h3>
-						{#if analysis.result.craft_evaluation}
-							<div class="prose max-w-none text-gray-700">
-								{@html analysis.result.craft_evaluation.replace(/\n/g, '<br>')}
-							</div>
+											{#if analysis.result.craft_evaluation}
+						<div class="prose max-w-none text-gray-700">
+							{@html parseMarkdown(analysis.result.craft_evaluation)}
+						</div>
 						{:else}
 							<p class="text-gray-500 italic">Craft evaluation will be available in enhanced results.</p>
 						{/if}
@@ -1381,10 +1426,10 @@
 							<span class="text-indigo-600 mr-2">🎭</span>
 							Thematic Depth
 						</h3>
-						{#if analysis.result.thematic_depth}
-							<div class="prose max-w-none text-gray-700">
-								{@html analysis.result.thematic_depth.replace(/\n/g, '<br>')}
-							</div>
+											{#if analysis.result.thematic_depth}
+						<div class="prose max-w-none text-gray-700">
+							{@html parseMarkdown(analysis.result.thematic_depth)}
+						</div>
 						{:else}
 							<p class="text-gray-500 italic">Thematic analysis will be available in enhanced results.</p>
 						{/if}
@@ -1392,59 +1437,192 @@
 				</div>
 
 			{:else if activeTab === 'genre'}
-				<!-- Genre Tab -->
-				<div class="space-y-6">
-					<!-- Genre Classification -->
-					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-						<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-							<span class="text-red-600 mr-2">🎬</span>
-							Genre Classification
-						</h3>
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-							<!-- Primary Genre -->
-							<div class="bg-red-50 border border-red-200 rounded-lg p-4">
-								<h4 class="font-semibold text-red-900 mb-2">Primary Genre</h4>
-								<span class="inline-flex items-center px-3 py-2 rounded-lg text-lg font-medium bg-red-100 text-red-800">
-									{analysis.result.genre || analysis.result.detected_genre || 'Not specified'}
-								</span>
+				<!-- Genre Intelligence Tab -->
+				<div class="space-y-8">
+					{#if analysis.result.genre || analysis.result.detected_genre || analysis.result.genre_mastery}
+						<!-- Header with AI Badge -->
+						<div class="bg-gradient-to-r from-red-500 via-pink-600 to-purple-600 rounded-xl p-1 shadow-lg">
+							<div class="bg-white rounded-lg p-6">
+								<div class="flex items-center justify-between">
+									<div class="flex items-center space-x-3">
+										<span class="text-3xl">🎬</span>
+										<div>
+											<h2 class="text-2xl font-bold text-gray-900">Genre Intelligence & Conventions</h2>
+											<p class="text-gray-600">Genre mastery analysis and market expectations</p>
+										</div>
+									</div>
+									<div class="flex items-center space-x-2">
+										<span class="text-xs bg-gradient-to-r from-red-100 to-pink-100 text-red-800 px-3 py-2 rounded-full font-medium">Genre AI</span>
+										<span class="text-xs bg-green-100 text-green-800 px-3 py-2 rounded-full font-medium">Market Analysis</span>
+									</div>
+								</div>
 							</div>
-							
-							<!-- Subgenre -->
-							{#if analysis.result.subgenre}
-								<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-									<h4 class="font-semibold text-blue-900 mb-2">Subgenre</h4>
-									<span class="inline-flex items-center px-3 py-2 rounded-lg text-lg font-medium bg-blue-100 text-blue-800">
-										{analysis.result.subgenre}
-									</span>
-								</div>
-							{/if}
-							
-							<!-- Detected Genre (if different) -->
-							{#if analysis.result.detected_genre && analysis.result.detected_genre !== analysis.result.genre}
-								<div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
-									<h4 class="font-semibold text-orange-900 mb-2">AI-Detected Genre</h4>
-									<span class="inline-flex items-center px-3 py-2 rounded-lg text-lg font-medium bg-orange-100 text-orange-800">
-										{analysis.result.detected_genre}
-									</span>
-								</div>
-							{/if}
 						</div>
-					</div>
 
-					<!-- Genre Mastery Analysis -->
-					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-						<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-							<span class="text-red-600 mr-2">🎭</span>
-							Genre Mastery Analysis
-						</h3>
-						{#if analysis.result.genre_mastery}
-							<div class="prose max-w-none text-gray-700">
-								{@html analysis.result.genre_mastery.replace(/\n/g, '<br>')}
+						<!-- Genre Classification -->
+						<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+							<div class="bg-gradient-to-r from-red-50 to-pink-50 px-6 py-4 border-b border-gray-200">
+								<h3 class="text-xl font-bold text-gray-900 flex items-center">
+									<span class="text-red-600 mr-3">🏷️</span>
+									Genre Classification
+								</h3>
 							</div>
-						{:else}
-							<p class="text-gray-500 italic">Genre mastery analysis will be available in enhanced results.</p>
+							<div class="p-6">
+								<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+									<!-- Primary Genre -->
+									<div class="text-center">
+										<div class="w-20 h-20 bg-gradient-to-br from-red-400 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-3">
+											<span class="text-white text-2xl font-bold">🎬</span>
+										</div>
+										<h4 class="text-lg font-semibold text-gray-900 mb-2">Primary Genre</h4>
+										<span class="inline-flex items-center px-4 py-2 rounded-full text-lg font-medium bg-red-100 text-red-800">
+											{analysis.result.genre || analysis.result.detected_genre || 'Not specified'}
+										</span>
+									</div>
+									
+									<!-- Subgenre -->
+									{#if analysis.result.subgenre}
+										<div class="text-center">
+											<div class="w-20 h-20 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3">
+												<span class="text-white text-2xl font-bold">🎭</span>
+											</div>
+											<h4 class="text-lg font-semibold text-gray-900 mb-2">Subgenre</h4>
+											<span class="inline-flex items-center px-4 py-2 rounded-full text-lg font-medium bg-blue-100 text-blue-800">
+												{analysis.result.subgenre}
+											</span>
+										</div>
+									{/if}
+									
+									<!-- AI Detection -->
+									{#if analysis.result.detected_genre}
+										<div class="text-center">
+											<div class="w-20 h-20 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-full flex items-center justify-center mx-auto mb-3">
+												<span class="text-white text-2xl font-bold">🤖</span>
+											</div>
+											<h4 class="text-lg font-semibold text-gray-900 mb-2">AI Detection</h4>
+											<span class="inline-flex items-center px-4 py-2 rounded-full text-lg font-medium bg-purple-100 text-purple-800">
+												{analysis.result.detected_genre}
+											</span>
+											{#if analysis.result.detected_genre !== analysis.result.genre}
+												<p class="text-sm text-purple-600 mt-2">Differs from declared genre</p>
+											{:else}
+												<p class="text-sm text-green-600 mt-2">Matches declared genre</p>
+											{/if}
+										</div>
+									{/if}
+								</div>
+							</div>
+						</div>
+
+						<!-- Genre Mastery Analysis -->
+						{#if analysis.result.genre_mastery}
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-purple-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-xl font-bold text-gray-900 flex items-center">
+										<span class="text-purple-600 mr-3">🎭</span>
+										Genre Mastery & Conventions
+									</h3>
+								</div>
+								<div class="p-6">
+									<div class="prose prose-lg max-w-none text-gray-700 leading-relaxed">
+										{@html parseMarkdown(analysis.result.genre_mastery)}
+									</div>
+								</div>
+							</div>
 						{/if}
-					</div>
+
+						<!-- Genre Expectations & Market Analysis -->
+						<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+							<!-- Audience Expectations -->
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-lg font-bold text-gray-900 flex items-center">
+										<span class="text-green-600 mr-2">👥</span>
+										Audience Expectations
+									</h3>
+								</div>
+								<div class="p-6 space-y-4">
+									{#if analysis.result.genre || analysis.result.detected_genre}
+										{@const genreExpectations = {
+											'Thriller': ['Suspense and tension', 'Plot twists', 'High stakes', 'Fast pacing'],
+											'Horror': ['Fear and dread', 'Supernatural elements', 'Jump scares', 'Atmospheric tension'],
+											'Comedy': ['Humor and wit', 'Character-driven laughs', 'Timing', 'Relatable situations'],
+											'Drama': ['Emotional depth', 'Character development', 'Realistic conflicts', 'Human themes'],
+											'Action': ['High-energy sequences', 'Physical conflicts', 'Heroic protagonists', 'Clear stakes'],
+											'Romance': ['Emotional connection', 'Relationship development', 'Chemistry', 'Happy endings'],
+											'Sci-Fi': ['Futuristic concepts', 'Technology themes', 'World-building', 'Speculation'],
+											'Fantasy': ['Magical elements', 'World-building', 'Mythical creatures', 'Hero\'s journey']
+										}}
+										{@const currentGenre = analysis.result.genre || analysis.result.detected_genre}
+										{@const expectations = genreExpectations[currentGenre] || ['Genre-specific elements', 'Audience satisfaction', 'Market conventions', 'Storytelling traditions']}
+										
+										{#each expectations as expectation}
+											<div class="flex items-center space-x-3">
+												<span class="text-green-500">✓</span>
+												<span class="text-gray-700">{expectation}</span>
+											</div>
+										{/each}
+									{:else}
+										<div class="text-gray-500 text-center">Genre expectations will be displayed when genre is identified</div>
+									{/if}
+								</div>
+							</div>
+
+							<!-- Market Performance -->
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-blue-50 to-cyan-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-lg font-bold text-gray-900 flex items-center">
+										<span class="text-blue-600 mr-2">📊</span>
+										Market Performance
+									</h3>
+								</div>
+								<div class="p-6 space-y-4">
+									{#if analysis.result.genre || analysis.result.detected_genre}
+										{@const marketData = {
+											'Thriller': { popularity: 'High', budget: 'Mid-range', audience: 'Broad appeal', trend: 'Stable' },
+											'Horror': { popularity: 'High', budget: 'Low-Mid', audience: 'Niche but loyal', trend: 'Growing' },
+											'Comedy': { popularity: 'Medium', budget: 'Low-Mid', audience: 'Broad appeal', trend: 'Cyclical' },
+											'Drama': { popularity: 'Medium', budget: 'Variable', audience: 'Adult-focused', trend: 'Awards-driven' },
+											'Action': { popularity: 'Very High', budget: 'High', audience: 'Global appeal', trend: 'Franchise-driven' },
+											'Romance': { popularity: 'Medium', budget: 'Low-Mid', audience: 'Female-skewed', trend: 'Streaming-friendly' },
+											'Sci-Fi': { popularity: 'High', budget: 'High', audience: 'Tech-savvy', trend: 'IP-driven' },
+											'Fantasy': { popularity: 'High', budget: 'Very High', audience: 'Young adult+', trend: 'Franchise-focused' }
+										}}
+										{@const currentGenre = analysis.result.genre || analysis.result.detected_genre}
+										{@const market = marketData[currentGenre] || { popularity: 'Variable', budget: 'Depends on scope', audience: 'Genre-specific', trend: 'Market-dependent' }}
+										
+										<div class="grid grid-cols-2 gap-4">
+											<div>
+												<div class="text-sm font-medium text-gray-600">Popularity</div>
+												<div class="text-lg font-semibold text-blue-700">{market.popularity}</div>
+											</div>
+											<div>
+												<div class="text-sm font-medium text-gray-600">Budget Range</div>
+												<div class="text-lg font-semibold text-blue-700">{market.budget}</div>
+											</div>
+											<div>
+												<div class="text-sm font-medium text-gray-600">Target Audience</div>
+												<div class="text-lg font-semibold text-blue-700">{market.audience}</div>
+											</div>
+											<div>
+												<div class="text-sm font-medium text-gray-600">Market Trend</div>
+												<div class="text-lg font-semibold text-blue-700">{market.trend}</div>
+											</div>
+										</div>
+									{:else}
+										<div class="text-gray-500 text-center">Market performance data will be displayed when genre is identified</div>
+									{/if}
+								</div>
+							</div>
+						</div>
+					{:else}
+						<!-- No Genre Analysis Available -->
+						<div class="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
+							<div class="text-gray-400 text-8xl mb-6">🎬</div>
+							<h3 class="text-2xl font-semibold text-gray-900 mb-4">Genre Analysis Unavailable</h3>
+							<p class="text-gray-600 mb-4 max-w-lg mx-auto">Genre classification and mastery analysis was not completed for this screenplay.</p>
+						</div>
+					{/if}
 				</div>
 
 			{:else if activeTab === 'grok'}
@@ -1893,47 +2071,157 @@
 
 		{:else if activeTab === 'gpt5'}
 			<!-- GPT-5 Writing Excellence Tab -->
-			<div class="space-y-6">
-				{#if hasGPT5Data()}
-					<!-- GPT-5 Overview -->
-					<div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200 p-6">
-						<div class="flex items-center justify-between mb-4">
-							<h3 class="text-xl font-bold text-gray-900 flex items-center">
-								<span class="text-blue-600 mr-2">🧠</span>
-								GPT-5 Writing Excellence Analysis
-							</h3>
-							<div class="text-right">
-								{#if analysis.result.gpt5_score}
-									<div class="text-2xl font-bold {getScoreColor(analysis.result.gpt5_score)}">
-										{analysis.result.gpt5_score}/10
+			<div class="space-y-8">
+				{#if analysis.result.gpt5_score || analysis.result.gpt5_executive_assessment}
+					<!-- Header with AI Badge -->
+					<div class="bg-gradient-to-r from-blue-500 via-purple-600 to-indigo-600 rounded-xl p-1 shadow-lg">
+						<div class="bg-white rounded-lg p-6">
+							<div class="flex items-center justify-between">
+								<div class="flex items-center space-x-3">
+									<span class="text-3xl">🧠</span>
+									<div>
+										<h2 class="text-2xl font-bold text-gray-900">GPT-5 Writing Excellence Analysis</h2>
+										<p class="text-gray-600">Advanced craft evaluation powered by GPT-5</p>
 									</div>
-									<div class="text-sm text-gray-500">Writing Excellence Score</div>
-								{/if}
+								</div>
+								<div class="flex items-center space-x-2">
+									<span class="text-xs bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 px-3 py-2 rounded-full font-medium">GPT-5</span>
+									<span class="text-xs bg-green-100 text-green-800 px-3 py-2 rounded-full font-medium">Writing Craft</span>
+								</div>
 							</div>
 						</div>
-						{#if getGPT5ExecutiveAssessment()}
-							{@const gpt5Assessment = getGPT5ExecutiveAssessment()}
-							<div class="bg-white rounded-lg p-4 border border-blue-200">
-								<div class="space-y-3">
+					</div>
+
+					<!-- Executive Summary -->
+					{#if analysis.result.gpt5_score}
+						<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+							<div class="bg-gradient-to-r from-blue-50 to-purple-50 px-6 py-4 border-b border-gray-200">
+								<h3 class="text-xl font-bold text-gray-900 flex items-center">
+									<span class="text-blue-600 mr-3">📊</span>
+									Writing Excellence Score
+								</h3>
+							</div>
+							<div class="p-6">
+								<div class="flex items-center space-x-6">
+									<div class="flex-shrink-0">
+										<div class="w-24 h-24 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
+											<span class="text-white text-3xl font-bold">{analysis.result.gpt5_score}</span>
+										</div>
+									</div>
+									<div class="flex-1">
+										<h4 class="text-xl font-semibold text-gray-900 mb-2">Overall Writing Quality</h4>
+										<div class="w-full bg-gray-200 rounded-full h-3 mb-3">
+											<div class="bg-gradient-to-r from-blue-400 to-purple-500 h-3 rounded-full transition-all duration-500" 
+												 style="width: {(analysis.result.gpt5_score / 10) * 100}%"></div>
+										</div>
+										<p class="text-gray-600 text-sm leading-relaxed">
+											{analysis.result.gpt5_recommendation || 'Professional writing craft assessment complete.'}
+										</p>
+									</div>
+								</div>
+							</div>
+						</div>
+					{/if}
+
+					<!-- Detailed Assessment -->
+					{#if analysis.result.gpt5_executive_assessment}
+						{@const gpt5Assessment = typeof analysis.result.gpt5_executive_assessment === 'string' 
+							? JSON.parse(analysis.result.gpt5_executive_assessment) 
+							: analysis.result.gpt5_executive_assessment}
+						
+						{#if gpt5Assessment}
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-purple-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-xl font-bold text-gray-900 flex items-center">
+										<span class="text-purple-600 mr-3">🎭</span>
+										Professional Assessment
+									</h3>
+								</div>
+								<div class="p-6 space-y-6">
+									<!-- Professional Verdict -->
 									{#if gpt5Assessment.professional_verdict}
-										<p class="text-blue-900 font-medium italic">"{gpt5Assessment.professional_verdict}"</p>
-									{/if}
-									{#if gpt5Assessment.quick_impressions}
-										<div class="text-sm text-blue-800 bg-blue-50 p-3 rounded border-l-4 border-blue-300">
-											<div class="font-medium mb-1">Quick Impressions:</div>
-											<div>{gpt5Assessment.quick_impressions}</div>
+										<div class="bg-blue-50 border-l-4 border-blue-400 p-6 rounded-r-lg">
+											<h4 class="text-lg font-semibold text-blue-900 mb-3 flex items-center">
+												<span class="text-blue-600 mr-2">⭐</span>
+												Professional Verdict
+											</h4>
+											<p class="text-blue-800 font-medium text-lg italic leading-relaxed">
+												"{gpt5Assessment.professional_verdict}"
+											</p>
 										</div>
 									{/if}
+
+									<!-- Quick Impressions -->
+									{#if gpt5Assessment.quick_impressions}
+										<div class="bg-green-50 border border-green-200 rounded-lg p-6">
+											<h4 class="text-lg font-semibold text-green-900 mb-3 flex items-center">
+												<span class="text-green-600 mr-2">👁️</span>
+												First Impressions
+											</h4>
+											<div class="prose prose-sm max-w-none text-green-800 leading-relaxed">
+												{@html parseMarkdown(gpt5Assessment.quick_impressions)}
+											</div>
+										</div>
+									{/if}
+
+									<!-- Deep Analysis -->
 									{#if gpt5Assessment.deep_analysis}
-										<div class="text-sm text-blue-800 bg-blue-50 p-3 rounded border-l-4 border-blue-300">
-											<div class="font-medium mb-1">Deep Analysis:</div>
-											<div>{gpt5Assessment.deep_analysis}</div>
+										<div class="bg-purple-50 border border-purple-200 rounded-lg p-6">
+											<h4 class="text-lg font-semibold text-purple-900 mb-3 flex items-center">
+												<span class="text-purple-600 mr-2">🔍</span>
+												Deep Craft Analysis
+											</h4>
+											<div class="prose prose-sm max-w-none text-purple-800 leading-relaxed">
+												{@html parseMarkdown(gpt5Assessment.deep_analysis)}
+											</div>
+										</div>
+									{/if}
+
+									<!-- Strengths & Weaknesses Grid -->
+									{#if gpt5Assessment.strengths || gpt5Assessment.weaknesses}
+										<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+											{#if gpt5Assessment.strengths}
+												<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-6">
+													<h4 class="text-lg font-semibold text-emerald-900 mb-3 flex items-center">
+														<span class="text-emerald-600 mr-2">✅</span>
+														Key Strengths
+													</h4>
+													<div class="prose prose-sm max-w-none text-emerald-800">
+														{@html parseMarkdown(gpt5Assessment.strengths)}
+													</div>
+												</div>
+											{/if}
+
+											{#if gpt5Assessment.weaknesses}
+												<div class="bg-red-50 border border-red-200 rounded-lg p-6">
+													<h4 class="text-lg font-semibold text-red-900 mb-3 flex items-center">
+														<span class="text-red-600 mr-2">⚠️</span>
+														Areas for Improvement
+													</h4>
+													<div class="prose prose-sm max-w-none text-red-800">
+														{@html parseMarkdown(gpt5Assessment.weaknesses)}
+													</div>
+												</div>
+											{/if}
+										</div>
+									{/if}
+
+									<!-- Technical Analysis -->
+									{#if gpt5Assessment.technical_notes}
+										<div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
+											<h4 class="text-lg font-semibold text-gray-900 mb-3 flex items-center">
+												<span class="text-gray-600 mr-2">⚙️</span>
+												Technical Craft Notes
+											</h4>
+											<div class="prose prose-sm max-w-none text-gray-800">
+												{@html parseMarkdown(gpt5Assessment.technical_notes)}
+											</div>
 										</div>
 									{/if}
 								</div>
 							</div>
 						{/if}
-					</div>
+					{/if}
 
 					<!-- Character Voice Analysis -->
 					{#if getGPT5CharacterVoice()}
@@ -2246,77 +2534,186 @@
 							</h3>
 						</div>
 						<div class="p-6 space-y-6">
-							<!-- Box Office Predictions -->
-							{#if analysis.result.deepseek_box_office_prediction}
-								{@const prediction = typeof analysis.result.deepseek_box_office_prediction === 'string' 
-									? JSON.parse(analysis.result.deepseek_box_office_prediction) 
-									: analysis.result.deepseek_box_office_prediction}
+							<!-- Budget Optimization -->
+							{#if analysis.result.deepseek_budget_optimization}
+								{@const budget = typeof analysis.result.deepseek_budget_optimization === 'string' 
+									? JSON.parse(analysis.result.deepseek_budget_optimization) 
+									: analysis.result.deepseek_budget_optimization}
 								
-								{#if prediction}
+								{#if budget}
 									<div>
 										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-											<span class="text-blue-500 mr-2">📈</span>
-											Box Office Prediction Model
+											<span class="text-blue-500 mr-2">💰</span>
+											Budget Optimization Analysis
 										</h4>
-										<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-											{#if prediction.conservative_scenario}
-												<div class="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl p-6 text-center transform hover:scale-105 transition-transform duration-200">
-													<div class="text-red-800 font-semibold mb-2 flex items-center justify-center">
-														<span class="mr-2">📉</span>
-														Conservative (P10)
+										
+										<!-- Budget Range Recommendations -->
+										{#if budget.recommended_budget_range}
+											<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+												<div class="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-xl p-6 text-center">
+													<div class="text-red-800 font-semibold mb-2">Minimum Budget</div>
+													<div class="text-2xl font-bold text-red-600 mb-2">
+														${budget.recommended_budget_range.minimum?.toLocaleString()}
 													</div>
-													<div class="text-3xl font-bold text-red-600 mb-2">
-														${prediction.conservative_scenario?.toLocaleString()}
+													<div class="text-sm text-red-600">Bare minimum viable</div>
+												</div>
+												<div class="bg-gradient-to-br from-green-50 to-green-100 border border-green-300 rounded-xl p-6 text-center ring-2 ring-green-300">
+													<div class="text-green-800 font-semibold mb-2">Optimal Budget</div>
+													<div class="text-2xl font-bold text-green-600 mb-2">
+														${budget.recommended_budget_range.optimal?.toLocaleString()}
 													</div>
-													<div class="text-sm text-red-600 bg-red-100 px-3 py-1 rounded-full">10% chance of doing worse</div>
+													<div class="text-sm text-green-600">Recommended target</div>
+												</div>
+												<div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-6 text-center">
+													<div class="text-blue-800 font-semibold mb-2">Maximum Budget</div>
+													<div class="text-2xl font-bold text-blue-600 mb-2">
+														${budget.recommended_budget_range.maximum?.toLocaleString()}
+													</div>
+													<div class="text-sm text-blue-600">Upper limit</div>
+												</div>
+											</div>
+										{/if}
+										
+										<!-- Cost Allocation -->
+										{#if budget.cost_allocation_recommendations}
+											<div class="bg-gray-50 rounded-xl p-6 border border-gray-200">
+												<h5 class="font-semibold text-gray-900 mb-4">Recommended Cost Allocation</h5>
+												<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+													{#if budget.cost_allocation_recommendations.above_line}
+														<div class="text-center">
+															<div class="text-lg font-bold text-gray-900">${budget.cost_allocation_recommendations.above_line?.toLocaleString()}</div>
+															<div class="text-sm text-gray-600">Above Line</div>
+														</div>
+													{/if}
+													{#if budget.cost_allocation_recommendations.below_line}
+														<div class="text-center">
+															<div class="text-lg font-bold text-gray-900">${budget.cost_allocation_recommendations.below_line?.toLocaleString()}</div>
+															<div class="text-sm text-gray-600">Below Line</div>
+														</div>
+													{/if}
+													{#if budget.cost_allocation_recommendations.post_production}
+														<div class="text-center">
+															<div class="text-lg font-bold text-gray-900">${budget.cost_allocation_recommendations.post_production?.toLocaleString()}</div>
+															<div class="text-sm text-gray-600">Post Production</div>
+														</div>
+													{/if}
+													{#if budget.cost_allocation_recommendations.contingency}
+														<div class="text-center">
+															<div class="text-lg font-bold text-gray-900">${budget.cost_allocation_recommendations.contingency?.toLocaleString()}</div>
+															<div class="text-sm text-gray-600">Contingency</div>
+														</div>
+													{/if}
+												</div>
+											</div>
+										{/if}
+									</div>
+								{/if}
+							{/if}
+							
+							<!-- ROI Analysis -->
+							{#if analysis.result.deepseek_roi_analysis}
+								{@const roi = typeof analysis.result.deepseek_roi_analysis === 'string' 
+									? JSON.parse(analysis.result.deepseek_roi_analysis) 
+									: analysis.result.deepseek_roi_analysis}
+								
+								{#if roi}
+									<div class="mt-6">
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-green-500 mr-2">📊</span>
+											Return on Investment Analysis
+										</h4>
+										
+										<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+											<!-- Break Even Analysis -->
+											{#if roi.break_even_point}
+												<div class="bg-yellow-50 rounded-xl p-6 border border-yellow-200">
+													<h5 class="font-semibold text-yellow-900 mb-3">Break-Even Point</h5>
+													<div class="text-2xl font-bold text-yellow-700 mb-2">
+														${roi.break_even_point?.toLocaleString()}
+													</div>
+													{#if roi.break_even_explanation}
+														<div class="text-sm text-yellow-800 leading-relaxed">
+															{roi.break_even_explanation}
+														</div>
+													{/if}
 												</div>
 											{/if}
-											{#if prediction.expected_scenario}
-												<div class="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-300 rounded-xl p-6 text-center transform hover:scale-105 transition-transform duration-200 ring-2 ring-yellow-300">
-													<div class="text-yellow-800 font-semibold mb-2 flex items-center justify-center">
-														<span class="mr-2">📊</span>
-														Expected (P50)
+											
+											<!-- ROI Scenarios -->
+											{#if roi.roi_scenarios}
+												<div class="bg-green-50 rounded-xl p-6 border border-green-200">
+													<h5 class="font-semibold text-green-900 mb-3">ROI Scenarios</h5>
+													<div class="space-y-3">
+														{#each Object.entries(roi.roi_scenarios) as [scenario, value]}
+															<div class="flex justify-between items-center">
+																<span class="text-sm font-medium text-green-800 capitalize">{scenario.replace('_', ' ')}</span>
+																<span class="text-sm font-bold text-green-700">{value}%</span>
+															</div>
+														{/each}
 													</div>
-													<div class="text-3xl font-bold text-yellow-700 mb-2">
-														${prediction.expected_scenario?.toLocaleString()}
-													</div>
-													<div class="text-sm text-yellow-700 bg-yellow-100 px-3 py-1 rounded-full">Most likely outcome</div>
 												</div>
 											{/if}
-											{#if prediction.optimistic_scenario}
-												<div class="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl p-6 text-center transform hover:scale-105 transition-transform duration-200">
-													<div class="text-green-800 font-semibold mb-2 flex items-center justify-center">
-														<span class="mr-2">📈</span>
-														Optimistic (P90)
+										</div>
+									</div>
+								{/if}
+							{/if}
+							
+							<!-- Risk Assessment -->
+							{#if analysis.result.deepseek_risk_assessment}
+								{@const risk = typeof analysis.result.deepseek_risk_assessment === 'string' 
+									? JSON.parse(analysis.result.deepseek_risk_assessment) 
+									: analysis.result.deepseek_risk_assessment}
+								
+								{#if risk}
+									<div class="mt-6">
+										<h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+											<span class="text-red-500 mr-2">⚠️</span>
+											Risk Assessment & Market Analysis
+										</h4>
+										
+										<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+											<!-- Overall Risk Level -->
+											{#if risk.overall_risk_level}
+												<div class="bg-red-50 rounded-xl p-6 border border-red-200">
+													<h5 class="font-semibold text-red-900 mb-3">Overall Risk Level</h5>
+													<div class="text-2xl font-bold text-red-700 mb-2 capitalize">
+														{risk.overall_risk_level}
 													</div>
-													<div class="text-3xl font-bold text-green-600 mb-2">
-														${prediction.optimistic_scenario?.toLocaleString()}
+													{#if risk.risk_explanation}
+														<div class="text-sm text-red-800 leading-relaxed">
+															{risk.risk_explanation}
+														</div>
+													{/if}
+												</div>
+											{/if}
+											
+											<!-- Risk Factors -->
+											{#if risk.risk_factors}
+												<div class="bg-orange-50 rounded-xl p-6 border border-orange-200">
+													<h5 class="font-semibold text-orange-900 mb-3">Key Risk Factors</h5>
+													<div class="space-y-2">
+														{#each risk.risk_factors as factor}
+															<div class="flex items-start space-x-2">
+																<span class="text-orange-600 mt-1">•</span>
+																<span class="text-sm text-orange-800">{factor}</span>
+															</div>
+														{/each}
 													</div>
-													<div class="text-sm text-green-600 bg-green-100 px-3 py-1 rounded-full">10% chance of doing better</div>
 												</div>
 											{/if}
 										</div>
 										
-										<!-- Methodology & Reasoning -->
-										{#if prediction.methodology_explanation || prediction.why_these_numbers}
-											<div class="mt-6 bg-gray-50 rounded-xl p-6 border border-gray-200">
-												<h5 class="font-semibold text-gray-900 mb-4 flex items-center">
-													<span class="text-blue-500 mr-2">🔬</span>
-													Analysis Methodology
-												</h5>
-												<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-													{#if prediction.methodology_explanation}
-														<div>
-															<div class="text-sm font-medium text-gray-700 mb-2">How We Calculated These Numbers</div>
-															<div class="text-sm text-gray-600 leading-relaxed">{prediction.methodology_explanation}</div>
+										<!-- Market Volatility -->
+										{#if risk.market_volatility}
+											<div class="mt-4 bg-yellow-50 rounded-xl p-6 border border-yellow-200">
+												<h5 class="font-semibold text-yellow-900 mb-3">Market Volatility Analysis</h5>
+												<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+													{#each Object.entries(risk.market_volatility) as [factor, level]}
+														<div class="text-center">
+															<div class="text-lg font-bold text-yellow-700 capitalize">{level}</div>
+															<div class="text-sm text-yellow-800 capitalize">{factor.replace('_', ' ')}</div>
 														</div>
-													{/if}
-													{#if prediction.why_these_numbers}
-														<div>
-															<div class="text-sm font-medium text-gray-700 mb-2">Why This Range Makes Sense</div>
-															<div class="text-sm text-gray-600 leading-relaxed">{prediction.why_these_numbers}</div>
-														</div>
-													{/if}
+													{/each}
 												</div>
 											</div>
 										{/if}
@@ -2942,6 +3339,24 @@
 							{/if}
 						{/if}
 						
+						<!-- Audience Demographics -->
+						{#if analysis.result.perplexity_audience_demographics}
+							{@const demographics = typeof analysis.result.perplexity_audience_demographics === 'string' 
+								? JSON.parse(analysis.result.perplexity_audience_demographics) 
+								: analysis.result.perplexity_audience_demographics}
+							
+							{#if demographics && demographics.content}
+								<div class="mb-6">
+									<h4 class="text-lg font-semibold text-gray-900 mb-4">Audience Demographics</h4>
+									<div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
+										<div class="prose prose-sm max-w-none text-gray-700">
+											{demographics.content}
+										</div>
+									</div>
+								</div>
+							{/if}
+						{/if}
+						
 						<!-- Talent Intelligence -->
 						{#if analysis.result.perplexity_talent_intelligence}
 							{@const talent = typeof analysis.result.perplexity_talent_intelligence === 'string' 
@@ -3503,27 +3918,181 @@
 				</div>
 
 			{:else if activeTab === 'improvements'}
-				<!-- Improvements Tab -->
-				<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-					<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-						<span class="text-yellow-600 mr-2">💡</span>
-						Improvement Strategies
-					</h3>
-					{#if parseJsonField(analysis.result.improvement_strategies || analysis.result.suggestions).length > 0}
-						<div class="bg-yellow-50 rounded-lg p-6">
-							<ul class="space-y-4">
-								{#each parseJsonField(analysis.result.improvement_strategies || analysis.result.suggestions) as strategy, index}
-									<li class="flex items-start">
-										<span class="flex-shrink-0 bg-yellow-200 text-yellow-800 rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium mr-3 mt-0.5">
-											{index + 1}
-										</span>
-										<span class="text-yellow-900">{strategy}</span>
-									</li>
-								{/each}
-							</ul>
+				<!-- Enhancement Notes Tab -->
+				<div class="space-y-8">
+					{#if analysis.result.improvement_strategies}
+						<!-- Header with AI Badge -->
+						<div class="bg-gradient-to-r from-yellow-500 via-orange-600 to-red-600 rounded-xl p-1 shadow-lg">
+							<div class="bg-white rounded-lg p-6">
+								<div class="flex items-center justify-between">
+									<div class="flex items-center space-x-3">
+										<span class="text-3xl">💡</span>
+										<div>
+											<h2 class="text-2xl font-bold text-gray-900">Enhancement Notes & Recommendations</h2>
+											<p class="text-gray-600">Structured improvement strategies for your screenplay</p>
+										</div>
+									</div>
+									<div class="flex items-center space-x-2">
+										<span class="text-xs bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 px-3 py-2 rounded-full font-medium">Enhancement AI</span>
+										<span class="text-xs bg-green-100 text-green-800 px-3 py-2 rounded-full font-medium">Actionable</span>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Improvement Strategies -->
+						<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+							<div class="bg-gradient-to-r from-yellow-50 to-orange-50 px-6 py-4 border-b border-gray-200">
+								<h3 class="text-xl font-bold text-gray-900 flex items-center">
+									<span class="text-yellow-600 mr-3">🎯</span>
+									Prioritized Improvement Strategies
+								</h3>
+							</div>
+							<div class="p-6">
+								{#if analysis.result.improvement_strategies}
+									{@const strategies = parseJsonField(analysis.result.improvement_strategies)}
+									{#if strategies.length > 0}
+									<div class="space-y-6">
+										{#each strategies as strategy, index}
+											<div class="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-6">
+												<div class="flex items-start space-x-4">
+													<div class="flex-shrink-0">
+														<div class="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+															<span class="text-white text-lg font-bold">{index + 1}</span>
+														</div>
+													</div>
+													<div class="flex-1">
+														<div class="prose prose-sm max-w-none text-gray-800 leading-relaxed">
+															{@html parseMarkdown(strategy)}
+														</div>
+													</div>
+													<div class="flex-shrink-0">
+														{#if true}
+															{@const priority = index < 3 ? 'High' : index < 6 ? 'Medium' : 'Low'}
+															{@const priorityColor = priority === 'High' ? 'bg-red-100 text-red-800' : priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}
+															<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {priorityColor}">
+																{priority} Priority
+															</span>
+														{/if}
+													</div>
+												</div>
+											</div>
+										{/each}
+									</div>
+									{:else}
+										<div class="text-center py-8">
+											<div class="text-gray-400 text-6xl mb-4">💡</div>
+											<p class="text-gray-500">No specific improvement strategies available.</p>
+										</div>
+									{/if}
+								{:else}
+									<div class="text-center py-8">
+										<div class="text-gray-400 text-6xl mb-4">💡</div>
+										<p class="text-gray-500">No improvement strategies data available.</p>
+									</div>
+								{/if}
+							</div>
+						</div>
+
+						<!-- Enhancement Categories -->
+						<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+							<!-- Story Structure -->
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-lg font-bold text-gray-900 flex items-center">
+										<span class="text-blue-600 mr-2">📖</span>
+										Story Structure
+									</h3>
+								</div>
+								<div class="p-6">
+									<div class="space-y-3 text-sm text-gray-700">
+										<div class="flex items-center space-x-2">
+											<span class="text-blue-500">•</span>
+											<span>Three-act structure optimization</span>
+										</div>
+										<div class="flex items-center space-x-2">
+											<span class="text-blue-500">•</span>
+											<span>Pacing and rhythm adjustments</span>
+										</div>
+										<div class="flex items-center space-x-2">
+											<span class="text-blue-500">•</span>
+											<span>Plot point strengthening</span>
+										</div>
+										<div class="flex items-center space-x-2">
+											<span class="text-blue-500">•</span>
+											<span>Subplot integration</span>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Character Development -->
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-green-50 to-emerald-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-lg font-bold text-gray-900 flex items-center">
+										<span class="text-green-600 mr-2">👥</span>
+										Character Development
+									</h3>
+								</div>
+								<div class="p-6">
+									<div class="space-y-3 text-sm text-gray-700">
+										<div class="flex items-center space-x-2">
+											<span class="text-green-500">•</span>
+											<span>Character arc enhancement</span>
+										</div>
+										<div class="flex items-center space-x-2">
+											<span class="text-green-500">•</span>
+											<span>Dialogue authenticity</span>
+										</div>
+										<div class="flex items-center space-x-2">
+											<span class="text-green-500">•</span>
+											<span>Motivation clarity</span>
+										</div>
+										<div class="flex items-center space-x-2">
+											<span class="text-green-500">•</span>
+											<span>Relationship dynamics</span>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<!-- Technical Craft -->
+							<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+								<div class="bg-gradient-to-r from-purple-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+									<h3 class="text-lg font-bold text-gray-900 flex items-center">
+										<span class="text-purple-600 mr-2">⚙️</span>
+										Technical Craft
+									</h3>
+								</div>
+								<div class="p-6">
+									<div class="space-y-3 text-sm text-gray-700">
+										<div class="flex items-center space-x-2">
+											<span class="text-purple-500">•</span>
+											<span>Format and style consistency</span>
+										</div>
+										<div class="flex items-center space-x-2">
+											<span class="text-purple-500">•</span>
+											<span>Scene description optimization</span>
+										</div>
+										<div class="flex items-center space-x-2">
+											<span class="text-purple-500">•</span>
+											<span>Action line efficiency</span>
+										</div>
+										<div class="flex items-center space-x-2">
+											<span class="text-purple-500">•</span>
+											<span>Professional presentation</span>
+										</div>
+									</div>
+								</div>
+							</div>
 						</div>
 					{:else}
-						<p class="text-gray-500 italic">Improvement strategies will be available in enhanced results.</p>
+						<!-- No Enhancement Notes Available -->
+						<div class="bg-white rounded-xl shadow-lg border border-gray-200 p-12 text-center">
+							<div class="text-gray-400 text-8xl mb-6">💡</div>
+							<h3 class="text-2xl font-semibold text-gray-900 mb-4">Enhancement Notes Unavailable</h3>
+							<p class="text-gray-600 mb-4 max-w-lg mx-auto">Structured improvement recommendations were not generated for this screenplay.</p>
+						</div>
 					{/if}
 				</div>
 
@@ -3662,9 +4231,9 @@
 								<span class="text-green-600 mr-2">💼</span>
 								Commercial Viability
 							</h3>
-							<div class="prose max-w-none text-gray-700">
-								{@html analysis.result.commercial_viability.replace(/\n/g, '<br>')}
-							</div>
+											<div class="prose max-w-none text-gray-700">
+					{@html parseMarkdown(analysis.result.commercial_viability)}
+				</div>
 						</div>
 					{/if}
 
@@ -3676,9 +4245,9 @@
 									<span class="text-blue-600 mr-2">🎯</span>
 									Target Audience
 								</h3>
-								<div class="text-gray-700">
-									{@html analysis.result.target_audience.replace(/\n/g, '<br>')}
-								</div>
+															<div class="prose max-w-none text-gray-700">
+								{@html parseMarkdown(analysis.result.target_audience)}
+							</div>
 							</div>
 						{/if}
 

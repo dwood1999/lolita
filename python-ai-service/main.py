@@ -42,6 +42,11 @@ POSTER_GENERATION_ENABLED = os.getenv("POSTER_GENERATION_ENABLED", "true").lower
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Request queuing system
+MAX_CONCURRENT_ANALYSES = 3  # Limit concurrent analyses
+analysis_semaphore = asyncio.Semaphore(MAX_CONCURRENT_ANALYSES)
+analysis_queue_size = 0
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Quilty Screenplay Analysis Service",
@@ -291,8 +296,9 @@ async def analyze_text(
         if not db.insert_initial_analysis(initial_data):
             raise HTTPException(status_code=500, detail="Failed to create analysis record")
         
-        # Start background analysis
+        # Start queued background analysis
         background_tasks.add_task(
+            queued_analysis,
             process_text_analysis,
             analysis_id,
             request.screenplay_text,
@@ -418,8 +424,9 @@ async def analyze_pdf(
         if not db.insert_initial_analysis(initial_data):
             raise HTTPException(status_code=500, detail="Failed to create analysis record")
         
-        # Start background analysis
+        # Start queued background analysis
         background_tasks.add_task(
+            queued_analysis,
             process_pdf_analysis,
             analysis_id,
             file_content,
@@ -543,6 +550,25 @@ async def stream_progress(analysis_id: str):
             "Access-Control-Allow-Headers": "*",
         }
     )
+
+# Queued analysis wrapper
+async def queued_analysis(analysis_func, *args, **kwargs):
+    """Wrapper to limit concurrent analyses using semaphore"""
+    global analysis_queue_size
+    
+    analysis_queue_size += 1
+    logger.info(f"📊 Analysis queued. Queue size: {analysis_queue_size}, Active: {MAX_CONCURRENT_ANALYSES - analysis_semaphore._value}")
+    
+    async with analysis_semaphore:
+        try:
+            analysis_queue_size -= 1
+            logger.info(f"🚀 Starting analysis. Queue size: {analysis_queue_size}")
+            await analysis_func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"❌ Queued analysis failed: {e}")
+            raise
+        finally:
+            logger.info(f"✅ Analysis completed. Available slots: {analysis_semaphore._value}")
 
 # Background task functions
 async def process_text_analysis(

@@ -29,6 +29,7 @@ class PerplexityResult:
     platform_strategies: Optional[Dict[str, Any]] = None
     star_power_analysis: Optional[Dict[str, Any]] = None
     budget_benchmarks: Optional[Dict[str, Any]] = None
+    audience_demographics: Optional[Dict[str, Any]] = None
     sources_cited: List[str] = None
     
     market_opportunity_score: float = 0.0
@@ -106,6 +107,7 @@ Please provide specific examples, box office data where available, and actionabl
                 recent_industry_data={"content": self._extract_industry_data(response)},
                 platform_strategies={"content": self._extract_distribution_strategy(response)},
                 budget_benchmarks={"content": self._extract_budget_insights(response)},
+                audience_demographics={"content": self._extract_audience_demographics(response)},
                 market_opportunity_score=market_score,
                 competitive_advantage=competitive_advantage,
                 market_recommendation=recommendation,
@@ -175,6 +177,7 @@ Please provide specific examples, box office data where available, and actionabl
             'perplexity_distribution_strategy': json.dumps(result.platform_strategies) if result.platform_strategies else None,
             'perplexity_talent_intelligence': json.dumps(result.star_power_analysis) if result.star_power_analysis else None,
             'perplexity_financial_intelligence': json.dumps(result.budget_benchmarks) if result.budget_benchmarks else None,
+            'perplexity_audience_demographics': json.dumps(result.audience_demographics) if result.audience_demographics else None,
             'perplexity_sources_cited': json.dumps(result.sources_cited) if result.sources_cited else None,
             'perplexity_market_score': float(result.market_opportunity_score) if result.market_opportunity_score is not None else None,
             'perplexity_competitive_advantage': str(result.competitive_advantage) if result.competitive_advantage else None,
@@ -316,3 +319,15 @@ Please provide specific examples, box office data where available, and actionabl
                 budget_section.append(line.strip())
         
         return '\n'.join(budget_section[:5]) if budget_section else "Budget considerations included in analysis"
+    
+    def _extract_audience_demographics(self, response: str) -> str:
+        """Extract audience demographics and target market insights"""
+        
+        lines = response.split('\n')
+        demographics_section = []
+        
+        for line in lines:
+            if any(word in line.lower() for word in ['audience', 'demographic', 'target', 'viewer', 'age', 'gender', 'income', 'preference']):
+                demographics_section.append(line.strip())
+        
+        return '\n'.join(demographics_section[:8]) if demographics_section else "Audience demographics analysis included"

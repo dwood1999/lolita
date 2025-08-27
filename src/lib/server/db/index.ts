@@ -14,10 +14,22 @@ export async function getDbConnection() {
 			console.log('DB_PASSWORD first 5 chars:', env.DB_PASSWORD?.substring(0, 5));
 			console.log('DB_PASSWORD full (SvelteKit):', env.DB_PASSWORD);
 			
+			// Fix password handling - remove quotes if present
+			let password = env.DB_PASSWORD;
+			if (password) {
+				// Remove surrounding quotes if present (including the literal quotes from .env)
+				if (password.startsWith("'") && password.endsWith("'")) {
+					password = password.slice(1, -1);
+				} else if (password.startsWith('"') && password.endsWith('"')) {
+					password = password.slice(1, -1);
+				}
+				console.log('DB_PASSWORD processed (SvelteKit):', password);
+			}
+			
 			pool = mysql.createPool({
 				host: env.DB_HOST || 'localhost',
 				user: env.DB_USER || 'lolita',
-				password: env.DB_PASSWORD,
+				password: password,
 				database: env.DB_NAME || 'lolita',
 				waitForConnections: true,
 				connectionLimit: 15,
@@ -66,6 +78,9 @@ export async function initDatabase() {
 				id VARCHAR(255) PRIMARY KEY,
 				email VARCHAR(255) UNIQUE NOT NULL,
 				password_hash VARCHAR(255) NOT NULL,
+				full_name VARCHAR(255) DEFAULT '',
+				is_active BOOLEAN DEFAULT TRUE,
+				is_verified BOOLEAN DEFAULT TRUE,
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)
 		`);

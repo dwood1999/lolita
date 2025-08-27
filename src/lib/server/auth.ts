@@ -46,44 +46,49 @@ export async function createSession(token: string, userId: string): Promise<Sess
 }
 
 export async function validateSessionToken(token: string): Promise<{ session: Session; user: User } | null> {
-	const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
-	
-	const results = await executeQuery(`
-		SELECT s.*, u.* FROM sessions s 
-		JOIN users u ON s.user_id = u.id 
-		WHERE s.id = ? AND s.expires_at > NOW()
-	`, [sessionId]) as any[];
-	
-	if (results.length === 0) {
+	try {
+		const sessionId = encodeHexLowerCase(sha256(new TextEncoder().encode(token)));
+		
+		const results = await executeQuery(`
+			SELECT s.*, u.* FROM sessions s 
+			JOIN users u ON s.user_id = u.id 
+			WHERE s.id = ? AND s.expires_at > NOW()
+		`, [sessionId]) as any[];
+		
+		if (results.length === 0) {
+			return null;
+		}
+		
+		const row = results[0];
+		const session: Session = {
+			id: row.id,
+			user_id: row.user_id,
+			expires_at: row.expires_at,
+			created_at: row.created_at
+		};
+		
+		const user: User = {
+			id: row.user_id,
+			email: row.email,
+			password_hash: row.password_hash,
+			created_at: row.created_at
+		};
+		
+		// Refresh session if it's more than 15 days old
+		if (Date.now() >= session.expires_at.getTime() - DAY_IN_MS * 15) {
+			const newExpiresAt = new Date(Date.now() + DAY_IN_MS * 30);
+			await executeQuery(
+				'UPDATE sessions SET expires_at = ? WHERE id = ?',
+				[newExpiresAt, sessionId]
+			);
+			session.expires_at = newExpiresAt;
+		}
+		
+		return { session, user };
+	} catch (error) {
+		console.error('Session validation error:', error);
 		return null;
 	}
-	
-	const row = results[0];
-	const session: Session = {
-		id: row.id,
-		user_id: row.user_id,
-		expires_at: row.expires_at,
-		created_at: row.created_at
-	};
-	
-	const user: User = {
-		id: row.user_id,
-		email: row.email,
-		password_hash: row.password_hash,
-		created_at: row.created_at
-	};
-	
-	// Refresh session if it's more than 15 days old
-	if (Date.now() >= session.expires_at.getTime() - DAY_IN_MS * 15) {
-		const newExpiresAt = new Date(Date.now() + DAY_IN_MS * 30);
-		await executeQuery(
-			'UPDATE sessions SET expires_at = ? WHERE id = ?',
-			[newExpiresAt, sessionId]
-		);
-		session.expires_at = newExpiresAt;
-	}
-	
-	return { session, user };
 }
 
 export async function invalidateSession(sessionId: string): Promise<void> {
@@ -155,16 +160,21 @@ export async function createUser(email: string, password: string): Promise<User>
 }
 
 export async function getUserByEmail(email: string): Promise<User | null> {
-	const results = await executeQuery(
-		'SELECT * FROM users WHERE email = ?',
-		[email]
-	) as any[];
-	
-	if (results.length === 0) {
+	try {
+		const results = await executeQuery(
+			'SELECT * FROM users WHERE email = ?',
+			[email]
+		) as any[];
+		
+		if (results.length === 0) {
+			return null;
+		}
+		
+		return results[0] as User;
+	} catch (error) {
+		console.error('Error getting user by email:', error);
 		return null;
 	}
-	
-	return results[0] as User;
 }
 
 export async function verifyPassword(user: User, password: string): Promise<boolean> {
