@@ -2,28 +2,31 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
 	import type { PageData } from './$types';
 	import { parseMarkdown } from '$lib/utils/markdown.js';
 
 	export let data: PageData;
 
-	let loading = false; // Start with false since we have server-side data
-	let analysis: any = data.analysis;
+	let loading = true; // Start with true since we need to load client-side
+	let analysis: any = null;
 	let error = '';
 	let pollingInterval: ReturnType<typeof setInterval> | null = null;
 	let activeTab = 'dashboard';
 	let activeSection = 'core';
 	let sidebarCollapsed = false;
-	let isPublic = data.analysis?.is_public || false;
+	let isPublic = false;
 	let isUpdatingPublicStatus = false;
-	let publicShareToken = data.analysis?.public_share_token || null;
+	let publicShareToken = null;
 	let showShareUrl = false;
+	let castingWithContacts = null;
+	let loadingCastingContacts = false;
 	
 	// Lazy loading for tabs
 	let loadedTabs = new Set(['dashboard']); // Always load dashboard first
 	let tabContentCache = new Map();
 
-	const analysisId = $page.params.id;
+	const analysisId = data.analysisId || $page.params.id;
 
 	// Organized navigation structure
 	const navigationSections = {
@@ -53,6 +56,7 @@
 			color: 'green',
 			tabs: [
 				{ id: 'market', label: 'Market Intelligence', icon: '📊', description: 'Industry trends & positioning' },
+				{ id: 'sales-agents', label: 'Sales Agent Recommendations', icon: '🤝', description: 'AI-matched sales agents for distribution' },
 				{ id: 'producer', label: 'Producer Dashboard', icon: '🎬', description: 'Production insights' },
 				{ id: 'production', label: 'Production Planning', icon: '🎭', description: 'Logistics & scheduling' }
 			]
@@ -77,23 +81,27 @@
 	let pollAttempts = 0;
 
 	onMount(() => {
+		// Load analysis data client-side to avoid SSR issues with large data
+		fetchAnalysis();
+		
 		// Only start polling if analysis is still processing
-		// Don't fetch again since we have server-side data
 		if (analysis?.status === 'processing') {
 			startSmartPolling();
 		}
 		
 		// Handle legacy URL parameters for backward compatibility
-		const urlParams = new URLSearchParams(window.location.search);
-		const legacyTab = urlParams.get('tab');
-		if (legacyTab && legacyTab !== 'dashboard') {
-			// Map old tab names to new ones if needed
-			const tabMapping: Record<string, string> = {
-				'overview': 'dashboard'
-			};
-			const mappedTab = tabMapping[legacyTab] || legacyTab;
-			if (tabs.some(tab => tab.id === mappedTab)) {
-				navigateToTab(mappedTab);
+		if (browser) {
+			const urlParams = new URLSearchParams(window.location.search);
+			const legacyTab = urlParams.get('tab');
+			if (legacyTab && legacyTab !== 'dashboard') {
+				// Map old tab names to new ones if needed
+				const tabMapping: Record<string, string> = {
+					'overview': 'dashboard'
+				};
+				const mappedTab = tabMapping[legacyTab] || legacyTab;
+				if (tabs.some(tab => tab.id === mappedTab)) {
+					navigateToTab(mappedTab);
+				}
 			}
 		}
 
@@ -216,6 +224,19 @@
 			month: 'short',
 			day: 'numeric'
 		});
+	}
+
+	function formatCurrency(amount: number): string {
+		if (typeof amount !== 'number' || isNaN(amount)) {
+			return '$0';
+		}
+		
+		return new Intl.NumberFormat('en-US', {
+			style: 'currency',
+			currency: 'USD',
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 0
+		}).format(amount);
 	}
 
 	function parseJsonField(field: any): any[] {
@@ -652,7 +673,9 @@
 			// Show success message and share URL
 			if (isPublic) {
 				console.log('✅ Analysis is now publicly sharable');
-				console.log('🔗 Share URL:', `${window.location.origin}/public/analysis/${publicShareToken}`);
+				if (browser) {
+					console.log('🔗 Share URL:', `${window.location.origin}/public/analysis/${publicShareToken}`);
+				}
 				showShareUrl = true;
 				// Keep showing the URL while public
 			} else {
@@ -670,8 +693,104 @@
 		}
 	}
 
+	// Sales Agent Functions
+	async function loadSalesAgentRecommendations() {
+		try {
+			const response = await fetch(`http://localhost:8001/api/analysis/${analysisId}/sales-recommendations`);
+			const data = await response.json();
+			
+			if (data.success) {
+				return data.recommendations;
+			} else {
+				throw new Error('Failed to load sales recommendations');
+			}
+		} catch (error) {
+			console.error('Error loading sales recommendations:', error);
+			throw error;
+		}
+	}
+	
+	async function loadTerritoryAnalysis() {
+		try {
+			const genre = analysis?.result?.detected_genre || analysis?.result?.genre || 'drama';
+			const budget = analysis?.result?.ai_budget_optimal || 5000000;
+			
+			const response = await fetch(`http://localhost:8001/api/territory-analysis?genre=${genre}&budget=${budget}`);
+			const data = await response.json();
+			
+			if (data.success) {
+				return data.territory_estimates;
+			} else {
+				throw new Error('Failed to load territory analysis');
+			}
+		} catch (error) {
+			console.error('Error loading territory analysis:', error);
+			throw error;
+		}
+	}
+	
+	async function loadCastingWithContacts() {
+		if (loadingCastingContacts) return;
+		
+		loadingCastingContacts = true;
+		try {
+			const response = await fetch(`http://localhost:8001/api/analysis/${analysisId}/casting-with-contacts`);
+			const data = await response.json();
+			
+			if (data.success) {
+				castingWithContacts = data.casting_recommendations;
+				console.log('Loaded casting with contacts:', castingWithContacts);
+			} else {
+				throw new Error(data.message || 'Failed to load casting with contacts');
+			}
+		} catch (error) {
+			console.error('Error loading casting with contacts:', error);
+			alert('Failed to load contact information. Please try again.');
+		} finally {
+			loadingCastingContacts = false;
+		}
+	}
+	
+	async function generateSalesRecommendations() {
+		try {
+			// Force regeneration by calling the API
+			await loadSalesAgentRecommendations();
+			// Trigger a re-render by changing the active tab
+			const currentTab = activeTab;
+			activeTab = 'dashboard';
+			setTimeout(() => {
+				activeTab = currentTab;
+			}, 100);
+		} catch (error) {
+			console.error('Error generating sales recommendations:', error);
+		}
+	}
+	
+	function contactAgent(agent) {
+		// Create a mailto link with pre-filled subject and body
+		const subject = encodeURIComponent(`Film Distribution Inquiry - ${analysis?.result?.title || 'Screenplay'}`);
+		const body = encodeURIComponent(`Dear ${agent.agent_name},
+
+I hope this message finds you well. I am reaching out regarding a screenplay that I believe would be a great fit for your expertise in ${agent.primary_genres ? agent.primary_genres.join(', ') : 'film distribution'}.
+
+Project Details:
+- Title: ${analysis?.result?.title || 'Untitled'}
+- Genre: ${analysis?.result?.detected_genre || analysis?.result?.genre || 'N/A'}
+- Budget Range: ${analysis?.result?.ai_budget_optimal ? formatCurrency(analysis.result.ai_budget_optimal) : 'TBD'}
+
+Our AI analysis has identified ${agent.company_name} as an ideal match for this project based on your track record and specialization. I would love to discuss this opportunity further at your convenience.
+
+Best regards,
+[Your Name]
+[Your Contact Information]`);
+		
+		if (browser) {
+			window.location.href = `mailto:${agent.email}?subject=${subject}&body=${body}`;
+		}
+	}
+
 	function copyShareUrl() {
-		if (publicShareToken) {
+		if (publicShareToken && browser) {
 			const shareUrl = `${window.location.origin}/public/analysis/${publicShareToken}`;
 			navigator.clipboard.writeText(shareUrl).then(() => {
 				console.log('✅ Share URL copied to clipboard');
@@ -3249,19 +3368,9 @@
 								<div class="mb-6">
 									<h4 class="text-lg font-semibold text-gray-900 mb-4">Current Market Trends</h4>
 									<div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
-										<div class="prose prose-sm max-w-none text-gray-700">
-											{trends.content}
+										<div class="prose prose-sm max-w-none text-gray-700 [&>p]:mb-4 [&>h2]:mt-6 [&>h2]:mb-3 [&>h2]:font-semibold [&>ul]:mb-4 [&>ol]:mb-4">
+											{@html parseMarkdown(trends.content)}
 										</div>
-										{#if trends.sources && trends.sources.length > 0}
-											<div class="mt-4 pt-4 border-t border-purple-200">
-												<div class="text-sm font-medium text-purple-800 mb-2">Sources:</div>
-												<div class="space-y-1">
-													{#each trends.sources.slice(0, 3) as source}
-														<div class="text-xs text-purple-600">{source}</div>
-													{/each}
-												</div>
-											</div>
-										{/if}
 									</div>
 								</div>
 							{/if}
@@ -3277,8 +3386,8 @@
 								<div class="mb-6">
 									<h4 class="text-lg font-semibold text-gray-900 mb-4">Competitive Landscape</h4>
 									<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-										<div class="prose prose-sm max-w-none text-gray-700">
-											{competitive.content}
+										<div class="prose prose-sm max-w-none text-gray-700 [&>p]:mb-4 [&>h2]:mt-6 [&>h2]:mb-3 [&>h2]:font-semibold [&>ul]:mb-4 [&>ol]:mb-4">
+											{@html parseMarkdown(competitive.content)}
 										</div>
 									</div>
 								</div>
@@ -3295,8 +3404,8 @@
 								<div class="mb-6">
 									<h4 class="text-lg font-semibold text-gray-900 mb-4">Distribution Strategy</h4>
 									<div class="bg-green-50 border border-green-200 rounded-lg p-4">
-										<div class="prose prose-sm max-w-none text-gray-700">
-											{distribution.content}
+										<div class="prose prose-sm max-w-none text-gray-700 [&>p]:mb-4 [&>h2]:mt-6 [&>h2]:mb-3 [&>h2]:font-semibold [&>ul]:mb-4 [&>ol]:mb-4">
+											{@html parseMarkdown(distribution.content)}
 										</div>
 									</div>
 								</div>
@@ -3313,8 +3422,8 @@
 								<div class="mb-6">
 									<h4 class="text-lg font-semibold text-gray-900 mb-4">Industry Intelligence</h4>
 									<div class="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-										<div class="prose prose-sm max-w-none text-gray-700">
-											{industry.content}
+										<div class="prose prose-sm max-w-none text-gray-700 [&>p]:mb-4 [&>h2]:mt-6 [&>h2]:mb-3 [&>h2]:font-semibold [&>ul]:mb-4 [&>ol]:mb-4">
+											{@html parseMarkdown(industry.content)}
 										</div>
 									</div>
 								</div>
@@ -3331,8 +3440,8 @@
 								<div class="mb-6">
 									<h4 class="text-lg font-semibold text-gray-900 mb-4">Financial Intelligence</h4>
 									<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-										<div class="prose prose-sm max-w-none text-gray-700">
-											{financial.content}
+										<div class="prose prose-sm max-w-none text-gray-700 [&>p]:mb-4 [&>h2]:mt-6 [&>h2]:mb-3 [&>h2]:font-semibold [&>ul]:mb-4 [&>ol]:mb-4">
+											{@html parseMarkdown(financial.content)}
 										</div>
 									</div>
 								</div>
@@ -3349,8 +3458,8 @@
 								<div class="mb-6">
 									<h4 class="text-lg font-semibold text-gray-900 mb-4">Audience Demographics</h4>
 									<div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
-										<div class="prose prose-sm max-w-none text-gray-700">
-											{demographics.content}
+										<div class="prose prose-sm max-w-none text-gray-700 [&>p]:mb-4 [&>h2]:mt-6 [&>h2]:mb-3 [&>h2]:font-semibold [&>ul]:mb-4 [&>ol]:mb-4">
+											{@html parseMarkdown(demographics.content)}
 										</div>
 									</div>
 								</div>
@@ -3368,8 +3477,32 @@
 									<h4 class="text-lg font-semibold text-gray-900 mb-4">Talent Intelligence</h4>
 									<div class="bg-pink-50 border border-pink-200 rounded-lg p-4">
 										<div class="prose prose-sm max-w-none text-gray-700">
-											{talent.content}
+											{@html parseMarkdown(talent.content)}
 										</div>
+									</div>
+								</div>
+							{/if}
+						{/if}
+
+						<!-- Sources Section -->
+						{#if analysis.result.perplexity_sources_cited}
+							{@const sources = typeof analysis.result.perplexity_sources_cited === 'string' 
+								? JSON.parse(analysis.result.perplexity_sources_cited) 
+								: analysis.result.perplexity_sources_cited}
+							
+							{#if sources && sources.length > 0}
+								<div class="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+									<h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+										<span class="text-gray-600 mr-2">📚</span>
+										Research Sources
+									</h4>
+									<div class="grid grid-cols-1 gap-2">
+										{#each sources as source, index}
+											<div class="text-xs text-gray-600 flex items-start">
+												<span class="font-medium text-gray-500 mr-2 min-w-[1.5rem]">[{index + 1}]</span>
+												<span class="flex-1">{source}</span>
+											</div>
+										{/each}
 									</div>
 								</div>
 							{/if}
@@ -3510,6 +3643,254 @@
 						{/if}
 					</div>
 				{/if}
+			</div>
+
+		{:else if activeTab === 'sales-agents'}
+			<!-- Sales Agent Recommendations Tab -->
+			<div class="space-y-6">
+				{#await loadSalesAgentRecommendations()}
+					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+						<div class="flex items-center justify-center py-12">
+							<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+							<span class="ml-3 text-gray-600">Generating sales agent recommendations...</span>
+						</div>
+					</div>
+				{:then recommendations}
+					{#if recommendations && recommendations.length > 0}
+						<!-- Recommendations Header -->
+						<div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
+							<div class="flex items-center justify-between">
+								<div>
+									<h2 class="text-2xl font-bold text-gray-900 mb-2">🤝 AI-Matched Sales Agents</h2>
+									<p class="text-gray-600">Top sales agents recommended for your screenplay based on genre, budget, and performance history</p>
+								</div>
+								<div class="text-right">
+									<div class="text-2xl font-bold text-blue-600">{recommendations.length}</div>
+									<div class="text-sm text-gray-600">Recommendations</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- Territory Analysis -->
+						{#await loadTerritoryAnalysis()}
+							<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+								<h3 class="text-lg font-semibold text-gray-900 mb-4">📊 Territory Sales Estimates</h3>
+								<div class="animate-pulse">
+									<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+										{#each Array(6) as _}
+											<div class="h-20 bg-gray-200 rounded"></div>
+										{/each}
+									</div>
+								</div>
+							</div>
+						{:then territoryData}
+							{#if territoryData}
+								<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+									<h3 class="text-lg font-semibold text-gray-900 mb-4">📊 Territory Sales Estimates</h3>
+									<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+										{#each Object.entries(territoryData) as [territory, data]}
+											<div class="border rounded-lg p-4 hover:shadow-md transition-shadow">
+												<h4 class="font-medium text-gray-900 mb-2">{territory}</h4>
+												<div class="space-y-1 text-sm">
+													<p class="text-gray-600">Market Share: <span class="font-medium">{data.contribution_percentage.toFixed(1)}%</span></p>
+													<p class="text-gray-600">Est. Revenue: <span class="font-medium text-green-600">{formatCurrency(data.estimated_revenue)}</span></p>
+													<p class="text-gray-600">Risk: 
+														<span class="px-2 py-1 rounded text-xs {data.risk_level === 'Low' ? 'bg-green-100 text-green-800' : data.risk_level === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+															{data.risk_level}
+														</span>
+													</p>
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{/if}
+						{/await}
+
+						<!-- Agent Recommendations -->
+						<div class="space-y-4">
+							{#each recommendations as rec, index}
+								<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+									<div class="flex items-start justify-between mb-4">
+										<div class="flex-1">
+											<div class="flex items-center gap-3 mb-2">
+												<div class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+													#{index + 1} Recommendation
+												</div>
+												<div class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+													{rec.overall_score}% Match
+												</div>
+											</div>
+											<h3 class="text-xl font-bold text-gray-900">{rec.company_name}</h3>
+											<p class="text-lg text-gray-600">{rec.agent_name}</p>
+											{#if rec.title}
+												<p class="text-sm text-gray-500">{rec.title}</p>
+											{/if}
+										</div>
+										<div class="text-right">
+											<div class="text-2xl mb-2">
+												{#if rec.company_size === 'major'}🏢
+												{:else if rec.company_size === 'mid_size'}🏬
+												{:else}🏪{/if}
+											</div>
+											<div class="text-xs text-gray-500">{rec.company_size.replace('_', ' ')}</div>
+										</div>
+									</div>
+
+									<!-- AI Reasoning -->
+									{#if rec.recommendation_reasoning}
+										<div class="bg-blue-50 rounded-lg p-4 mb-4">
+											<h4 class="font-medium text-blue-900 mb-2">🤖 AI Analysis</h4>
+											<div class="prose prose-sm max-w-none text-blue-800">
+												{@html parseMarkdown(rec.recommendation_reasoning)}
+											</div>
+										</div>
+									{/if}
+
+									<!-- Score Breakdown -->
+									<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+										<div class="text-center">
+											<div class="text-lg font-bold text-gray-900">{rec.genre_match_score}%</div>
+											<div class="text-xs text-gray-600">Genre Match</div>
+										</div>
+										<div class="text-center">
+											<div class="text-lg font-bold text-gray-900">{rec.budget_compatibility_score}%</div>
+											<div class="text-xs text-gray-600">Budget Fit</div>
+										</div>
+										<div class="text-center">
+											<div class="text-lg font-bold text-gray-900">{rec.performance_history_score}%</div>
+											<div class="text-xs text-gray-600">Track Record</div>
+										</div>
+										<div class="text-center">
+											<div class="text-lg font-bold text-gray-900">{rec.territory_coverage_score}%</div>
+											<div class="text-xs text-gray-600">Territory</div>
+										</div>
+										<div class="text-center">
+											<div class="text-lg font-bold text-gray-900">{rec.market_timing_score}%</div>
+											<div class="text-xs text-gray-600">Timing</div>
+										</div>
+									</div>
+
+									<!-- Agent Details -->
+									<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+										<div>
+											<h4 class="font-medium text-gray-900 mb-2">Contact Information</h4>
+											<div class="space-y-1 text-sm">
+												{#if rec.email}
+													<p><span class="text-gray-600">Email:</span> <a href="mailto:{rec.email}" class="text-blue-600 hover:underline">{rec.email}</a></p>
+												{/if}
+												{#if rec.phone}
+													<p><span class="text-gray-600">Phone:</span> {rec.phone}</p>
+												{/if}
+												{#if rec.website}
+													<p><span class="text-gray-600">Website:</span> <a href={rec.website} target="_blank" class="text-blue-600 hover:underline">{rec.website}</a></p>
+												{/if}
+												<p><span class="text-gray-600">Response Time:</span> {rec.response_time_days} days</p>
+											</div>
+										</div>
+										<div>
+											<h4 class="font-medium text-gray-900 mb-2">Performance Metrics</h4>
+											<div class="space-y-1 text-sm">
+												<p><span class="text-gray-600">Success Rate:</span> <span class="font-medium text-green-600">{rec.success_rate}%</span></p>
+												<p><span class="text-gray-600">Films Sold:</span> {rec.total_films_sold}</p>
+												<p><span class="text-gray-600">Avg Time to Sale:</span> {rec.avg_time_to_sale_days} days</p>
+												<p><span class="text-gray-600">Market Presence:</span> 
+													{#if rec.cannes_market_presence}Cannes{/if}
+													{#if rec.afm_presence}, AFM{/if}
+													{#if rec.berlin_efm_presence}, Berlin{/if}
+													{#if rec.tiff_presence}, TIFF{/if}
+												</p>
+											</div>
+										</div>
+									</div>
+
+									<!-- Predictions -->
+									{#if rec.estimated_sale_probability}
+										<div class="bg-gray-50 rounded-lg p-4 mb-4">
+											<h4 class="font-medium text-gray-900 mb-2">📈 Sale Predictions</h4>
+											<div class="grid grid-cols-3 gap-4 text-sm">
+												<div>
+													<div class="text-lg font-bold text-green-600">{rec.estimated_sale_probability}%</div>
+													<div class="text-gray-600">Sale Probability</div>
+												</div>
+												<div>
+													<div class="text-lg font-bold text-blue-600">{formatCurrency(rec.estimated_sale_price_min)} - {formatCurrency(rec.estimated_sale_price_max)}</div>
+													<div class="text-gray-600">Price Range</div>
+												</div>
+												<div>
+													<div class="text-lg font-bold text-purple-600">{rec.estimated_time_to_sale_days} days</div>
+													<div class="text-gray-600">Time to Sale</div>
+												</div>
+											</div>
+										</div>
+									{/if}
+
+									<!-- Concerns & Approach -->
+									<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+										{#if rec.potential_concerns}
+											<div class="bg-yellow-50 rounded-lg p-3">
+												<h4 class="font-medium text-yellow-900 mb-1">⚠️ Considerations</h4>
+												<div class="prose prose-sm max-w-none text-yellow-800">
+													{@html parseMarkdown(rec.potential_concerns)}
+												</div>
+											</div>
+										{/if}
+										{#if rec.suggested_approach}
+											<div class="bg-green-50 rounded-lg p-3">
+												<h4 class="font-medium text-green-900 mb-1">💡 Approach Strategy</h4>
+												<div class="prose prose-sm max-w-none text-green-800">
+													{@html parseMarkdown(rec.suggested_approach)}
+												</div>
+											</div>
+										{/if}
+									</div>
+
+									<!-- Actions -->
+									<div class="flex gap-3 pt-4 border-t">
+										<button 
+											on:click={() => contactAgent(rec)}
+											class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+										>
+											📧 Contact Agent
+										</button>
+										<button 
+											class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+										>
+											📋 Add to Watchlist
+										</button>
+										<button 
+											class="bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 transition-colors text-sm"
+										>
+											📊 View Full Profile
+										</button>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+							<div class="text-6xl mb-4">🤝</div>
+							<h3 class="text-xl font-semibold text-gray-900 mb-2">No Sales Agent Recommendations</h3>
+							<p class="text-gray-600 mb-6">We couldn't generate sales agent recommendations for this screenplay.</p>
+							<button 
+								on:click={() => generateSalesRecommendations()}
+								class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+							>
+								🔄 Generate Recommendations
+							</button>
+						</div>
+					{/if}
+				{:catch error}
+					<div class="bg-red-50 border border-red-200 rounded-lg p-6">
+						<div class="flex items-center">
+							<div class="text-red-500 text-xl mr-3">❌</div>
+							<div>
+								<h3 class="text-lg font-semibold text-red-900">Error Loading Sales Recommendations</h3>
+								<p class="text-red-700">{error.message}</p>
+							</div>
+						</div>
+					</div>
+				{/await}
 			</div>
 
 		{:else if activeTab === 'producer'}
@@ -3943,10 +4324,21 @@
 						<!-- Improvement Strategies -->
 						<div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
 							<div class="bg-gradient-to-r from-yellow-50 to-orange-50 px-6 py-4 border-b border-gray-200">
-								<h3 class="text-xl font-bold text-gray-900 flex items-center">
-									<span class="text-yellow-600 mr-3">🎯</span>
-									Prioritized Improvement Strategies
-								</h3>
+								<div class="flex items-center justify-between">
+									<h3 class="text-xl font-bold text-gray-900 flex items-center">
+										<span class="text-yellow-600 mr-3">🎯</span>
+										Prioritized Improvement Strategies
+									</h3>
+									{#if analysis?.result?.improvement_strategies}
+										{@const strategies = parseJsonField(analysis.result.improvement_strategies)}
+										{@const hasStructuredStrategies = strategies.some(s => typeof s === 'object' && s.category)}
+									{#if hasStructuredStrategies}
+										<div class="flex items-center space-x-2">
+											<span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">Enhanced</span>
+											<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium">With Examples</span>
+										</div>
+									{/if}
+								</div>
 							</div>
 							<div class="p-6">
 								{#if analysis.result.improvement_strategies}
@@ -3954,6 +4346,7 @@
 									{#if strategies.length > 0}
 									<div class="space-y-6">
 										{#each strategies as strategy, index}
+											{@const isStructured = typeof strategy === 'object' && strategy.category}
 											<div class="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-6">
 												<div class="flex items-start space-x-4">
 													<div class="flex-shrink-0">
@@ -3962,19 +4355,124 @@
 														</div>
 													</div>
 													<div class="flex-1">
-														<div class="prose prose-sm max-w-none text-gray-800 leading-relaxed">
-															{@html parseMarkdown(strategy)}
-														</div>
+														{#if isStructured}
+															<!-- Enhanced Structured Display -->
+															<div class="space-y-4">
+																<!-- Header with Category and Priority -->
+																<div class="flex items-center justify-between">
+																	<div class="flex items-center space-x-3">
+																		<h4 class="text-lg font-semibold text-gray-900">{strategy.category}</h4>
+																		{#if strategy.scene_reference}
+																			<span class="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+																				📍 {strategy.scene_reference}
+																			</span>
+																		{/if}
+																	</div>
+																	{@const priorityColor = strategy.priority === 'High' ? 'bg-red-100 text-red-800' : strategy.priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}
+																	<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {priorityColor}">
+																		{strategy.priority} Priority
+																	</span>
+																</div>
+
+																<!-- Issue Description -->
+																{#if strategy.issue}
+																	<div class="bg-red-50 border-l-4 border-red-400 p-4 rounded-r-lg">
+																		<div class="flex">
+																			<div class="flex-shrink-0">
+																				<span class="text-red-400 text-lg">⚠️</span>
+																			</div>
+																			<div class="ml-3">
+																				<h5 class="text-sm font-medium text-red-800">Issue Identified</h5>
+																				<div class="mt-1 text-sm text-red-700">
+																					{@html parseMarkdown(strategy.issue)}
+																				</div>
+																			</div>
+																		</div>
+																	</div>
+																{/if}
+
+																<!-- Screenplay Example -->
+																{#if strategy.screenplay_example}
+																	<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+																		<h5 class="text-sm font-medium text-blue-900 mb-2 flex items-center">
+																			<span class="mr-2">📄</span>
+																			Screenplay Example
+																		</h5>
+																		<div class="bg-white border border-blue-200 rounded p-3 font-mono text-sm text-gray-800">
+																			{@html parseMarkdown(strategy.screenplay_example)}
+																		</div>
+																	</div>
+																{/if}
+
+																<!-- Before/After Comparison -->
+																{#if strategy.before_after && (strategy.before_after.before || strategy.before_after.after)}
+																	<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+																		{#if strategy.before_after.before}
+																			<div class="bg-red-50 border border-red-200 rounded-lg p-4">
+																				<h5 class="text-sm font-medium text-red-900 mb-2 flex items-center">
+																					<span class="mr-2">❌</span>
+																					Before (Current)
+																				</h5>
+																				<div class="bg-white border border-red-200 rounded p-3 font-mono text-sm text-gray-800 whitespace-pre-wrap">{strategy.before_after.before}</div>
+																			</div>
+																		{/if}
+																		{#if strategy.before_after.after}
+																			<div class="bg-green-50 border border-green-200 rounded-lg p-4">
+																				<h5 class="text-sm font-medium text-green-900 mb-2 flex items-center">
+																					<span class="mr-2">✅</span>
+																					After (Suggested)
+																				</h5>
+																				<div class="bg-white border border-green-200 rounded p-3 font-mono text-sm text-gray-800 whitespace-pre-wrap">{strategy.before_after.after}</div>
+																				{#if strategy.before_after.after}
+																					<button 
+																						class="mt-2 text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded transition-colors"
+																						on:click={() => browser && navigator.clipboard.writeText(strategy.before_after.after)}
+																					>
+																						📋 Copy Suggestion
+																					</button>
+																				{/if}
+																			</div>
+																		{/if}
+																	</div>
+																{/if}
+
+																<!-- Suggestion and Implementation -->
+																<div class="space-y-3">
+																	{#if strategy.suggestion}
+																		<div class="bg-blue-50 rounded-lg p-4">
+																			<h5 class="font-medium text-blue-900 mb-2">💡 Suggested Solution</h5>
+																			<div class="prose prose-sm max-w-none text-blue-800">
+																				{@html parseMarkdown(strategy.suggestion)}
+																			</div>
+																		</div>
+																	{/if}
+
+																	{#if strategy.implementation}
+																		<div class="bg-green-50 rounded-lg p-4">
+																			<h5 class="font-medium text-green-900 mb-2">🔧 Implementation Steps</h5>
+																			<div class="prose prose-sm max-w-none text-green-800">
+																				{@html parseMarkdown(strategy.implementation)}
+																			</div>
+																		</div>
+																	{/if}
+																</div>
+															</div>
+														{:else}
+															<!-- Fallback for Legacy Format -->
+															<div class="prose prose-sm max-w-none text-gray-800 leading-relaxed">
+																{@html parseMarkdown(strategy)}
+															</div>
+														{/if}
 													</div>
-													<div class="flex-shrink-0">
-														{#if true}
+													{#if !isStructured}
+														<div class="flex-shrink-0">
 															{@const priority = index < 3 ? 'High' : index < 6 ? 'Medium' : 'Low'}
 															{@const priorityColor = priority === 'High' ? 'bg-red-100 text-red-800' : priority === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}
 															<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {priorityColor}">
 																{priority} Priority
 															</span>
-														{/if}
-													</div>
+														</div>
+													{/if}
 												</div>
 											</div>
 										{/each}
@@ -3991,6 +4489,7 @@
 										<p class="text-gray-500">No improvement strategies data available.</p>
 									</div>
 								{/if}
+							{/if}
 							</div>
 						</div>
 
@@ -4298,13 +4797,116 @@
 						{/if}
 					</div>
 
-					<!-- Casting Vision -->
+					<!-- Casting Vision with Contact Information -->
 					<div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-						<h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
-							<span class="text-red-600 mr-2">🌟</span>
-							Casting Vision
-						</h3>
-						{#if parseJsonField(analysis.result.casting_vision || analysis.result.casting_suggestions).length > 0}
+						<div class="flex items-center justify-between mb-4">
+							<h3 class="text-xl font-bold text-gray-900 flex items-center">
+								<span class="text-red-600 mr-2">🌟</span>
+								Casting Vision
+							</h3>
+							<button 
+								class="text-sm bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1 rounded-full transition-colors flex items-center"
+								on:click={() => loadCastingWithContacts()}
+							>
+								<span class="mr-1">📞</span>
+								Load Contact Info
+							</button>
+						</div>
+						
+						{#if castingWithContacts && castingWithContacts.length > 0}
+							<!-- Enhanced casting with contact information -->
+							<div class="space-y-6">
+								{#each castingWithContacts as casting}
+									<div class="border-b border-gray-200 pb-6 last:border-0">
+										<h4 class="font-semibold text-gray-900 mb-3 text-lg">{casting.character}</h4>
+										{#if casting.reasoning}
+											<p class="text-gray-600 mb-3 italic">{casting.reasoning}</p>
+										{/if}
+										
+										<div class="space-y-4">
+											{#each (casting.actors || []) as actor}
+												<div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+													<div class="flex items-start justify-between">
+														<div class="flex-1">
+															<h5 class="font-medium text-gray-900 flex items-center">
+																<span class="mr-2">🎭</span>
+																{actor.name}
+																{#if actor.public_imdb_url}
+																	<a 
+																		href="{actor.public_imdb_url}" 
+																		target="_blank" 
+																		class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded hover:bg-yellow-200"
+																	>
+																		IMDb
+																	</a>
+																{:else if actor.imdb_id}
+																	<a 
+																		href="https://www.imdb.com/name/{actor.imdb_id}/" 
+																		target="_blank" 
+																		class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded hover:bg-yellow-200"
+																	>
+																		IMDb
+																	</a>
+																{/if}
+															</h5>
+															
+															{#if actor.contact_available}
+																<div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+																	{#each Object.entries(actor.contacts) as [contactType, contact]}
+																		<div class="bg-white rounded border border-gray-200 p-3">
+																			<div class="flex items-center justify-between mb-2">
+																				<span class="text-xs font-medium text-gray-500 uppercase">{contact.type}</span>
+																				<div class="flex space-x-1">
+																					{#if contact.phone}
+																						<a 
+																							href="tel:{contact.phone}" 
+																							class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded hover:bg-green-200"
+																							title="Call {contact.name}"
+																						>
+																							📞
+																						</a>
+																					{/if}
+																					{#if contact.email}
+																						<a 
+																							href="mailto:{contact.email}" 
+																							class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200"
+																							title="Email {contact.name}"
+																						>
+																							✉️
+																						</a>
+																					{/if}
+																				</div>
+																			</div>
+																			<div class="text-sm">
+																				<div class="font-medium text-gray-900">{contact.name}</div>
+																				{#if contact.company}
+																					<div class="text-gray-600">{contact.company}</div>
+																				{/if}
+																				{#if contact.phone}
+																					<div class="text-gray-500 text-xs">{contact.phone}</div>
+																				{/if}
+																				{#if contact.email}
+																					<div class="text-gray-500 text-xs">{contact.email}</div>
+																				{/if}
+																			</div>
+																		</div>
+																	{/each}
+																</div>
+															{:else}
+																<div class="mt-2 text-sm text-gray-500 italic">
+																	Contact information not available
+																</div>
+															{/if}
+														</div>
+													</div>
+												</div>
+											{/each}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{:else if parseJsonField(analysis.result.casting_vision || analysis.result.casting_suggestions).length > 0}
+							<!-- Original casting vision without contact info -->
 							<div class="space-y-6">
 								{#each parseJsonField(analysis.result.casting_vision || analysis.result.casting_suggestions) as casting}
 									<div class="border-b border-gray-200 pb-6 last:border-0">

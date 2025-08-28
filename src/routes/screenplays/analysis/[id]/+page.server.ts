@@ -9,28 +9,13 @@ export const load: PageServerLoad = async ({ params, cookies, fetch }) => {
 		throw redirect(302, `/auth/login?redirectTo=/screenplays/analysis/${params.id}`);
 	}
 
-	try {
-		// Fetch analysis data server-side
-		const response = await fetch(`/api/screenplays/analysis/${params.id}`);
-		
-		if (!response.ok) {
-			if (response.status === 404) {
-				throw redirect(302, '/screenplays');
-			}
-			throw new Error('Failed to load analysis');
+	// For large analysis data, we'll load it client-side to avoid SSR issues
+	// Just return the user session and analysis ID
+	return {
+		analysisId: params.id,
+		user: {
+			id: session.user.id,
+			email: session.user.email
 		}
-
-		const analysis = await response.json();
-		
-		return {
-			analysis,
-			user: {
-				id: session.user.id,
-				email: session.user.email
-			}
-		};
-	} catch (error) {
-		console.error('Error loading analysis:', error);
-		throw redirect(302, '/screenplays');
-	}
+	};
 };
